@@ -157,6 +157,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         require(_amount > 0, "Amount must be greater than 0.");
         require(_amount == msg.value, "Incorrect amount sent.");
 
+        missions[_missionId] = Mission(_amount, msg.sender);
         emit MissionCreated(_missionId, _amount);
     }
 
