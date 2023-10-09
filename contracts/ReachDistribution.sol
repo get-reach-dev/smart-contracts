@@ -20,7 +20,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
 
     event DistributionCreated(uint256 indexed version, uint256 amount);
     event Received(address indexed sender, uint256 amount);
-    event MissionCreated(string indexed missionId, uint256 amount);
+    event MissionCreated(string missionId, uint256 amount);
 
     struct Mission {
         uint256 amount;
