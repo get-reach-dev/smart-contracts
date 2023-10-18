@@ -20,7 +20,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
 
     event DistributionCreated(uint256 indexed version, uint256 amount);
     event Received(address indexed sender, uint256 amount);
-    event MissionCreated(string missionId, uint256 amount);
+    event MissionCreated(string  missionId, uint256 amount);
 
     struct Mission {
         uint256 amount;
@@ -157,26 +157,11 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         require(_amount > 0, "Amount must be greater than 0.");
         require(_amount == msg.value, "Incorrect amount sent.");
 
-        missions[_missionId] = Mission(_amount, msg.sender);
         emit MissionCreated(_missionId, _amount);
     }
 
     // Fallback function to receive Ether
     receive() external payable {
         emit Received(msg.sender, msg.value);
-    }
-
-    function withdraw() external onlyOwner {
-        if (tokenDistribution) {
-            IERC20(erc20token).safeTransfer(
-                msg.sender,
-                IERC20(erc20token).balanceOf(address(this))
-            );
-        } else {
-            (bool success, ) = payable(msg.sender).call{
-                value: address(this).balance
-            }("");
-            require(success, "Transfer failed.");
-        }
     }
 }
