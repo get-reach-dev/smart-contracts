@@ -39,7 +39,8 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
     mapping(address => uint256) public lastClaimedVersion;
     address public erc20token;
     bool public paused;
-
+    uint256 public lockdownPeriod = 1 days;
+    uint256 public lockdownStart;
     // Admins enumerable set
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private admins;
@@ -181,5 +182,14 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
     // Fallback function to receive Ether
     receive() external payable {
         emit Received(msg.sender, msg.value);
+    }
+
+    function transferOwnership(address newOwner) public override onlyOwner {
+        require(
+            block.timestamp > lockdownStart + lockdownPeriod,
+            "Lockdown period is not over."
+        );
+        lockdownStart = block.timestamp;
+        super.transferOwnership(newOwner);
     }
 }
