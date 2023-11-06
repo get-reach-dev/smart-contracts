@@ -22,6 +22,11 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
     event Received(address indexed sender, uint256 amount);
     event MissionCreated(string missionId, uint256 amount);
 
+    enum PaymentType {
+        ETH,
+        ERC20
+    }
+
     struct Mission {
         uint256 amount;
         address creator;
@@ -33,7 +38,6 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
     uint256 public currentVersion;
     mapping(address => uint256) public lastClaimedVersion;
     address public erc20token;
-    bool public tokenDistribution;
     bool public paused;
 
     // Admins enumerable set
@@ -52,7 +56,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
     /*
      * @notice Pauses the contract
      */
-    function toggleClaiming() external onlyAdmin {
+    function toggleClaiming() external onlyOwner {
         paused = !paused;
     }
 
@@ -94,7 +98,8 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
      */
     function claimRewards(
         uint256 _amount,
-        bytes32[] calldata _merkleProof
+        bytes32[] calldata _merkleProof,
+        PaymentType _paymentType
     ) external nonReentrant {
         require(!paused, "Claiming is paused.");
         // Ensure the user is claiming for the current version
@@ -112,9 +117,11 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         totalClaimed[msg.sender] += _amount;
         lastClaimedVersion[msg.sender] = currentVersion;
 
-        if (tokenDistribution) {
+        if (_paymentType == PaymentType.ERC20) {
+            require(erc20token != address(0), "ERC20 token not set.");
             IERC20(erc20token).safeTransfer(msg.sender, _amount);
         } else {
+            // Transfer the amount to the user
             (bool success, ) = payable(msg.sender).call{value: _amount}("");
             require(success, "Transfer failed.");
         }
@@ -153,10 +160,20 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
      */
     function createMission(
         string memory _missionId,
-        uint256 _amount
+        uint256 _amount,
+        PaymentType _paymentType
     ) external payable {
         require(_amount > 0, "Amount must be greater than 0.");
-        require(_amount == msg.value, "Incorrect amount sent.");
+        if (_paymentType == PaymentType.ERC20) {
+            require(erc20token != address(0), "ERC20 token not set.");
+            IERC20(erc20token).safeTransferFrom(
+                msg.sender,
+                address(this),
+                _amount
+            );
+        } else {
+            require(_amount == msg.value, "Incorrect amount sent.");
+        }
 
         emit MissionCreated(_missionId, _amount);
     }
