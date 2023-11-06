@@ -201,4 +201,6 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         lockdownStart = block.timestamp;
         super.transferOwnership(newOwner);
     }
+
+    function renounceOwnership() public override onlyOwner {}
 }
