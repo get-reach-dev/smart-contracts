@@ -140,6 +140,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         bytes32 _merkleRoot,
         uint256 _amount
     ) external onlyAdmin {
+        require(_merkleRoot != bytes32(0), "Invalid merkle root.");
         if (msg.sender != owner()) {
             require(
                 block.timestamp > distributionLockStart + lockdownPeriod,
@@ -160,6 +161,11 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
      * @param _token The address of the ERC20 token
      */
     function setTokenAddress(address _token) external onlyOwner {
+        //ensure that the address supports ERC20 interface
+        require(
+            IERC20(_token).totalSupply() > 0,
+            "Invalid ERC20 token address."
+        );
         erc20token = _token;
     }
 
