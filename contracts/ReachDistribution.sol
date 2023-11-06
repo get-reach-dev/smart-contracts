@@ -41,6 +41,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
     bool public paused;
     uint256 public lockdownPeriod = 1 days;
     uint256 public lockdownStart;
+    uint256 public distributionLockStart;
     // Admins enumerable set
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private admins;
@@ -139,6 +140,14 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         bytes32 _merkleRoot,
         uint256 _amount
     ) external onlyAdmin {
+        if (msg.sender != owner()) {
+            require(
+                block.timestamp > distributionLockStart + lockdownPeriod,
+                "Lockdown period is not over."
+            );
+        }
+        distributionLockStart = block.timestamp;
+
         require(address(this).balance >= _amount, "Insufficient balance.");
         merkleRoot = _merkleRoot;
         currentVersion++;
