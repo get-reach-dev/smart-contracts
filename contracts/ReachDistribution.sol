@@ -20,7 +20,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
 
     event DistributionCreated(uint256 indexed version, uint256 amount);
     event Received(address indexed sender, uint256 amount);
-    event MissionCreated(string  missionId, uint256 amount);
+    event MissionCreated(string missionId, uint256 amount);
 
     struct Mission {
         uint256 amount;
@@ -131,6 +131,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         bytes32 _merkleRoot,
         uint256 _amount
     ) external onlyAdmin {
+        require(address(this).balance >= _amount, "Insufficient balance.");
         merkleRoot = _merkleRoot;
         currentVersion++;
 
