@@ -27,12 +27,6 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         ERC20
     }
 
-    struct Mission {
-        uint256 amount;
-        address creator;
-    }
-
-    mapping(string => Mission) public missions;
     mapping(address => uint256) public totalClaimed;
     bytes32 public merkleRoot;
     uint256 public currentVersion;
