@@ -70,10 +70,17 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
      * @param _account The addresses to be added as admins
      */
     function addAdmin(address[] memory _account) external onlyOwner {
+        //max admins is 5
+        require(admins.length() + _account.length <= 5, "Too many admins");
+        require(
+            block.timestamp > lockdownStart + lockdownPeriod,
+            "Lockdown period is not over."
+        );
         require(_account.length <= 10, "Too many admins");
         for (uint i = 0; i < _account.length; i++) {
             admins.add(_account[i]);
         }
+        lockdownStart = block.timestamp;
     }
 
     /*
@@ -81,10 +88,15 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
      * @param _account The addresses to be removed from admins
      */
     function removeAdmin(address[] memory _account) external onlyOwner {
+        require(
+            block.timestamp > lockdownStart + lockdownPeriod,
+            "Lockdown period is not over."
+        );
         require(_account.length <= 10, "Too many admins");
         for (uint i = 0; i < _account.length; i++) {
             admins.remove(_account[i]);
         }
+        lockdownStart = block.timestamp;
     }
 
     /*
@@ -132,9 +144,18 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
      */
     function createDistribution(
         bytes32 _merkleRoot,
-        uint256 _amount
+        uint256 _amount,
+        PaymentType _paymentType
     ) external onlyAdmin {
         require(_merkleRoot != bytes32(0), "Invalid merkle root.");
+        if (_paymentType == PaymentType.ERC20) {
+            require(erc20token != address(0), "ERC20 token not set.");
+            uint256 balance = IERC20(erc20token).balanceOf(address(this));
+            require(address(this).balance >= _amount, "Insufficient balance.");
+        } else {
+            require(address(this).balance >= _amount, "Insufficient balance.");
+        }
+
         if (msg.sender != owner()) {
             require(
                 block.timestamp > distributionLockStart + lockdownPeriod,
@@ -143,7 +164,6 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         }
         distributionLockStart = block.timestamp;
 
-        require(address(this).balance >= _amount, "Insufficient balance.");
         merkleRoot = _merkleRoot;
         currentVersion++;
 

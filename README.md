@@ -26,9 +26,6 @@ Reach Distribution is a smart contract developed on the Ethereum blockchain usin
 6. **Fallback Function**:
    - The contract includes a fallback function to receive Ether.
 
-7. **Withdrawal**:
-   - There's a function to allow the owner to withdraw remaining funds from the contract.
-
 ## Getting Started
 
 1. **Prerequisites**:
