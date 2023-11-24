@@ -40,7 +40,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private admins;
 
-    constructor() {
+    constructor() Ownable(msg.sender) {
         admins.add(msg.sender);
     }
 

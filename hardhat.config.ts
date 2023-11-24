@@ -3,7 +3,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-verify";
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.19",
+  solidity: "0.8.20",
   networks: {
     mainnet: {
       url: "https://mainnet.infura.io/v3/1b30c10bf7a646ef9fcc49f304d36ce0",
