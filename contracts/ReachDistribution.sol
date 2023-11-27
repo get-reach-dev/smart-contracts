@@ -151,7 +151,7 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
         if (_paymentType == PaymentType.ERC20) {
             require(erc20token != address(0), "ERC20 token not set.");
             uint256 balance = IERC20(erc20token).balanceOf(address(this));
-            require(address(this).balance >= _amount, "Insufficient balance.");
+            require(balance >= _amount, "Insufficient balance.");
         } else {
             require(address(this).balance >= _amount, "Insufficient balance.");
         }

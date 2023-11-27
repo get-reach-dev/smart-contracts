@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity >=0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -173,14 +173,6 @@ contract Reach is ERC20, Ownable {
         totalSellTax = _treasury + _liquidity;
     }
 
-    function setMaxBuyAndSell(
-        uint256 maxBuy,
-        uint256 maxSell
-    ) external onlyOwner {
-        maxBuyAmount = maxBuy * 10 ** 18;
-        maxSellAmount = maxSell * 10 ** 18;
-    }
-
     /// @notice Enable or disable internal swaps
     /// @dev Set "true" to enable internal swaps for liquidity, treasury and dividends
     function setSwapEnabled(bool _enabled) external onlyOwner {
@@ -266,16 +258,6 @@ contract Reach is ERC20, Ownable {
         ) {
             require(tradingEnabled, "Trading not active");
             require(!_isBot[from] && !_isBot[to], "Bye Bye Bot");
-            if (automatedMarketMakerPairs[to])
-                require(
-                    amount <= maxSellAmount,
-                    "You are exceeding maxSellAmount"
-                );
-            else if (automatedMarketMakerPairs[from])
-                require(
-                    amount <= maxBuyAmount,
-                    "You are exceeding maxBuyAmount"
-                );
         }
 
         if (amount == 0) {
