@@ -31,10 +31,10 @@ contract Reach is ERC20, Ownable {
     bool public claimEnabled;
     bool public tradingEnabled;
 
-    address public treasuryWallet = 0x73fA5dDF2aB78D92bB723D92Ab98aF7A0A4Fde8F;
+    address public treasuryWallet = 0x9078696B35d9dc90F658EA0520E8B72c2c0CaF5d;
     address public devWallet = 0x16023072c6a88555736B654629fC807d623617A5;
 
-    uint256 public swapTokensAtAmount = 50_000 * 10 ** 18;
+    uint256 public swapTokensAtAmount = 100_000 * 10 ** 18;
     ///////////////
     //   Fees    //
     ///////////////
@@ -66,8 +66,9 @@ contract Reach is ERC20, Ownable {
         uint256 indexed newValue,
         uint256 indexed oldValue
     );
+    event FeesCollected(uint256 indexed amount);
 
-    constructor() ERC20("Reach", "$Reach") Ownable(msg.sender) {
+    constructor() ERC20("Reach", "$Reach") Ownable() {
         IRouter _router = IRouter(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
         address _pair = IFactory(_router.factory()).createPair(
             address(this),
@@ -89,7 +90,7 @@ contract Reach is ERC20, Ownable {
             _mint is an internal function in ERC20.sol that is only called here,
             and CANNOT be called ever again
         */
-        _mint(owner(), 10e9 * (10 ** 18));
+        _mint(owner(), 10e7 * (10 ** 18));
     }
 
     receive() external payable {}
@@ -319,19 +320,19 @@ contract Reach is ERC20, Ownable {
 
         uint256 ETHToAddLiquidityWith = address(this).balance - initialBalance;
 
-        if (ETHToAddLiquidityWith > 0) {
-            // Add liquidity to dex
-            addLiquidity(tokensToAddLiquidityWith, ETHToAddLiquidityWith);
-        }
+        // if (ETHToAddLiquidityWith > 0) {
+        //     // Add liquidity to dex
+        //     addLiquidity(tokensToAddLiquidityWith, ETHToAddLiquidityWith);
+        // }
 
-        uint256 lpBalance = IERC20(pair).balanceOf(address(this));
-        uint256 totalTax = (totalSellTax - sellTaxes.liquidity);
+        // uint256 lpBalance = IERC20(pair).balanceOf(address(this));
+        // if (lpBalance > 0) {
+        //     IERC20(pair).transfer(treasuryWallet, lpBalance);
+        // }
+        uint256 ETHbalance = address(this).balance;
+        payable(treasuryWallet).sendValue(ETHbalance);
 
-        // Send LP to treasuryWallet
-        uint256 treasuryAmt = (lpBalance * sellTaxes.treasury) / totalTax;
-        if (treasuryAmt > 0) {
-            IERC20(pair).transfer(treasuryWallet, treasuryAmt);
-        }
+        emit FeesCollected(ETHbalance);
     }
 
     function swapTokensForETH(uint256 tokenAmount) private {

@@ -7,9 +7,12 @@
     "ts-node": "^10.9.1"
   },
   "dependencies": {
+    "@limitbreak/creator-token-contracts": "^1.1.2",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@openzeppelin/contracts": "^4.9.3",
+    "dotenv": "^16.3.1",
     "erc721a": "^4.2.3",
-    "ethers": "^6.7.1",
+    "ethers": "^6.9.0",
     "keccak256": "^1.0.6",
     "merkletreejs": "^0.3.11",
     "typescript": "^5.3.2"

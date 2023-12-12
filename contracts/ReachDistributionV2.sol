@@ -53,8 +53,6 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
     uint256 public distributionLockStart;
     MerkleTrees public merkleTrees;
 
-    constructor(address _owner) Ownable(_owner) {}
-
     /*
      * @notice Pauses the contract
      */

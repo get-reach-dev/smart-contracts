@@ -41,7 +41,7 @@ contract ReachDistributionFactory is Ownable {
     ReachDistribution[] public deployedDistributions;
     Prices public prices;
 
-    constructor(address _reachToken) Ownable(msg.sender) {
+    constructor(address _reachToken) Ownable() {
         reachToken = _reachToken;
     }
 
@@ -92,7 +92,7 @@ contract ReachDistributionFactory is Ownable {
     }
 
     function deployAffiliateDistribution() external onlyOwner {
-        ReachDistribution newDistribution = new ReachDistribution(msg.sender);
+        ReachDistribution newDistribution = new ReachDistribution();
         deployedDistributions.push(newDistribution);
 
         emit ReachAffiliateDistributionCreated(
