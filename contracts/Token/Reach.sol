@@ -311,14 +311,14 @@ contract Reach is ERC20, Ownable {
 
     function swapAndLiquify(uint256 tokens) private {
         // Split the contract balance into halves
-        uint256 tokensToAddLiquidityWith = tokens / 2;
-        uint256 toSwap = tokens - tokensToAddLiquidityWith;
+        // uint256 tokensToAddLiquidityWith = tokens / 2;
+        // uint256 toSwap = tokens - tokensToAddLiquidityWith;
 
-        uint256 initialBalance = address(this).balance;
+        // uint256 initialBalance = address(this).balance;
 
-        swapTokensForETH(toSwap);
+        swapTokensForETH(tokens);
 
-        uint256 ETHToAddLiquidityWith = address(this).balance - initialBalance;
+        // uint256 ETHToAddLiquidityWith = address(this).balance - initialBalance;
 
         // if (ETHToAddLiquidityWith > 0) {
         //     // Add liquidity to dex
