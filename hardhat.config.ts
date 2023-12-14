@@ -1,9 +1,12 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-verify";
+import "@nomicfoundation/hardhat-ethers";
+
 import { configDotenv } from "dotenv";
 configDotenv();
 
+console.log(process.env.INFURA_KEY);
 const config: HardhatUserConfig = {
   solidity: "0.8.19",
   networks: {
@@ -18,11 +21,11 @@ const config: HardhatUserConfig = {
       accounts: [`0x${process.env.PRIVATE_KEY}`], // Replace with your private key
     },
     sepolia: {
-      url: `https://sepolia.infura.io/v3/${process.env.INFURA_KEY}}`,
+      url: `https://sepolia.infura.io/v3/1b30c10bf7a646ef9fcc49f304d36ce0`,
       accounts: [`0x${process.env.PRIVATE_KEY}`], // Replace with your private key
     },
     goerli: {
-      url: `https://goerli.infura.io/v3/${process.env.INFURA_KEY}}`,
+      url: `https://goerli.infura.io/v3/1b30c10bf7a646ef9fcc49f304d36ce0`,
       accounts: [`0x${process.env.PRIVATE_KEY}`], // Replace with your private key
     },
   },

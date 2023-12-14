@@ -130,10 +130,14 @@ describe("$Reach tests", function () {
       const ethBalanceAfter = await network.provider.send("eth_getBalance", [
         treasury,
       ]);
+      //pair eth balance
+      const pair = await token.pair();
+      const pairBalance = await weth.balanceOf(pair);
       console.log(`
       totalFeesCollected: ${totalFeesCollected} \n
       ethTradeVolume: ${ethTradeVolume} \n
       tokenTradeVolume: ${tokenTradeVolume} \n
+      pairBalance: ${formatEther(pairBalance)} \n
       `);
 
       expect(totalFeesCollected).to.be.greaterThan(0);

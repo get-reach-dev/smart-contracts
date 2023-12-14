@@ -30,10 +30,7 @@ contract Reach is ERC20, Ownable {
     bool public swapEnabled = true;
     bool public claimEnabled;
     bool public tradingEnabled;
-
     address public treasuryWallet = 0x9078696B35d9dc90F658EA0520E8B72c2c0CaF5d;
-    address public devWallet = 0x16023072c6a88555736B654629fC807d623617A5;
-
     uint256 public swapTokensAtAmount = 100_000 * 10 ** 18;
     ///////////////
     //   Fees    //
@@ -49,8 +46,6 @@ contract Reach is ERC20, Ownable {
 
     uint256 public totalBuyTax = 5;
     uint256 public totalSellTax = 5;
-
-    mapping(address => bool) public _isBot;
 
     mapping(address => bool) private _isExcludedFromFees;
     mapping(address => bool) public automatedMarketMakerPairs;
@@ -84,7 +79,6 @@ contract Reach is ERC20, Ownable {
         excludeFromFees(owner(), true);
         excludeFromFees(address(this), true);
         excludeFromFees(treasuryWallet, true);
-        excludeFromFees(devWallet, true);
 
         /*
             _mint is an internal function in ERC20.sol that is only called here,
@@ -147,10 +141,6 @@ contract Reach is ERC20, Ownable {
         treasuryWallet = newWallet;
     }
 
-    function setDevWallet(address newWallet) external onlyOwner {
-        devWallet = newWallet;
-    }
-
     /// @notice Update the threshold to swap tokens for liquidity,
     function setSwapTokensAtAmount(uint256 amount) external onlyOwner {
         swapTokensAtAmount = amount * 10 ** 18;
@@ -185,23 +175,6 @@ contract Reach is ERC20, Ownable {
         tradingEnabled = true;
     }
 
-    function setClaimEnabled(bool state) external onlyOwner {
-        claimEnabled = state;
-    }
-
-    /// @param bot The bot address
-    /// @param value "true" to blacklist, "false" to unblacklist
-    function setBot(address bot, bool value) external onlyOwner {
-        require(_isBot[bot] != value);
-        _isBot[bot] = value;
-    }
-
-    function setBulkBot(address[] memory bots, bool value) external onlyOwner {
-        for (uint256 i; i < bots.length; i++) {
-            _isBot[bots[i]] = value;
-        }
-    }
-
     /// @dev Set new pairs created due to listing in new DEX
     function setAutomatedMarketMakerPair(
         address newPair,
@@ -232,20 +205,6 @@ contract Reach is ERC20, Ownable {
     // Transfer Functions //
     ////////////////////////
 
-    // Users will get dividend balance updated as soon as their balance change.
-    function airdropTokens(
-        address[] memory accounts,
-        uint256[] memory amounts
-    ) external onlyOwner {
-        require(
-            accounts.length == amounts.length,
-            "Arrays must have same size"
-        );
-        for (uint256 i; i < accounts.length; i++) {
-            super._transfer(msg.sender, accounts[i], amounts[i]);
-        }
-    }
-
     function _transfer(
         address from,
         address to,
@@ -258,7 +217,6 @@ contract Reach is ERC20, Ownable {
             !_isExcludedFromFees[from] && !_isExcludedFromFees[to] && !swapping
         ) {
             require(tradingEnabled, "Trading not active");
-            require(!_isBot[from] && !_isBot[to], "Bye Bye Bot");
         }
 
         if (amount == 0) {
@@ -347,21 +305,6 @@ contract Reach is ERC20, Ownable {
             tokenAmount,
             0, // accept any amount of ETH
             path,
-            address(this),
-            block.timestamp
-        );
-    }
-
-    function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
-        // approve token transfer to cover all possible scenarios
-        _approve(address(this), address(router), tokenAmount);
-
-        // add the liquidity
-        router.addLiquidityETH{value: ethAmount}(
-            address(this),
-            tokenAmount,
-            0, // slippage is unavoidable
-            0, // slippage is unavoidable
             address(this),
             block.timestamp
         );
