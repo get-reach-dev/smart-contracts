@@ -101,4 +101,8 @@ contract ReachDistributionFactory is Ownable2Step {
         require(IERC20(_token).totalSupply() > 0, "Not a token");
         reachToken = _token;
     }
+
+    function renounceOwnership() public virtual override onlyOwner {
+        revert("Can't renounce ownership");
+    }
 }

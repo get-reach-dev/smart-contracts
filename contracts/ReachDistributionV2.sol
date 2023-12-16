@@ -184,4 +184,8 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         require(_amount > 0, "Invalid amount");
         minEthAllocation = _amount;
     }
+
+    function renounceOwnership() public virtual override onlyOwner {
+        revert("Can't renounce ownership here");
+    }
 }
