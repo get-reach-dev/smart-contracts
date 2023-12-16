@@ -15,7 +15,6 @@ contract Reach is ERC20, Ownable2Step {
 
     bool private swapping;
     bool public swapEnabled = true;
-    bool public claimEnabled;
     bool public tradingEnabled;
     address public treasuryWallet = 0x9078696B35d9dc90F658EA0520E8B72c2c0CaF5d;
     uint256 public swapTokensAtAmount = 100_000 * 10 ** 18;
@@ -74,7 +73,7 @@ contract Reach is ERC20, Ownable2Step {
 
     /// @notice Withdraw tokens sent by mistake.
     /// @param tokenAddress The address of the token to withdraw
-    function rescueETH20Tokens(address tokenAddress) external onlyOwner {
+    function rescueERC20Tokens(address tokenAddress) external onlyOwner {
         IERC20(tokenAddress).transfer(
             owner(),
             IERC20(tokenAddress).balanceOf(address(this))
