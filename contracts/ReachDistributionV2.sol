@@ -52,7 +52,7 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         uint256 eth;
         uint256 reach;
     }
-    
+
     mapping(address => Claims) public claims;
     uint256 public currentVersion;
     mapping(address => uint256) public lastClaimedVersion;
@@ -72,17 +72,6 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         transferOwnership(_owner);
     }
 
-    // Modifiers
-    modifier onlySigned(bytes calldata _signature, uint256 _data) {
-        bytes32 messageHash = keccak256(abi.encodePacked(msg.sender, _data));
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(
-            messageHash
-        );
-        address signer = ECDSA.recover(ethSignedMessageHash, _signature);
-        require(signer == owner(), "Invalid signature");
-        _;
-    }
-
     // External functions
     /**
      * @dev Toggles the pausing state of the contract.
@@ -93,15 +82,10 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
 
     /**
      * @dev Reserves an allocation for ETH for the sender.
-     * @param _signature Signature for verification.
-     * @param _previousBalance Previous balance of the sender.
      */
-    function reserveEthAllocation(
-        bytes calldata _signature,
-        uint256 _previousBalance
-    ) external payable onlySigned(_signature, _previousBalance) {
+    function reserveEthAllocation() external payable {
         if (msg.value < minEthAllocation) revert UnsufficientEthAllocation();
-        ethAllocations[msg.sender] = msg.value + _previousBalance;
+        ethAllocations[msg.sender] += msg.value;
         emit EthAllocationReserved(msg.sender, msg.value, block.timestamp);
     }
 

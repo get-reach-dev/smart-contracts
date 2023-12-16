@@ -62,11 +62,9 @@ describe("Reach Distribution", function () {
 
       const bytes = e.getBytes(messageHash);
       const signature = await addrs[0].signMessage(bytes);
-      const tx = await distribution
-        .connect(addrs[1])
-        .reserveEthAllocation(signature, parseEther("5"), {
-          value: parseEther("5"),
-        });
+      const tx = await distribution.connect(addrs[1]).reserveEthAllocation({
+        value: parseEther("5"),
+      });
       const txData = await tx.wait();
       const filter = distribution.filters.EthAllocationReserved();
       const events = await distribution.queryFilter(filter, -1);

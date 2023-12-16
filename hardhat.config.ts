@@ -2,7 +2,6 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-verify";
 import "@nomicfoundation/hardhat-ethers";
-// import "@nomiclabs/hardhat-ethers";
 
 import { configDotenv } from "dotenv";
 configDotenv();
