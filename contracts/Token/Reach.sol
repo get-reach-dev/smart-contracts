@@ -2,27 +2,12 @@
 pragma solidity >=0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IDex.sol";
 
-// import {console} from "hardhat/console.sol";
-
-library Address {
-    function sendValue(address payable recipient, uint256 amount) internal {
-        require(
-            address(this).balance >= amount,
-            "Address: insufficient balance"
-        );
-
-        (bool success, ) = recipient.call{value: amount}("");
-        require(
-            success,
-            "Address: unable to send value, recipient may have reverted"
-        );
-    }
-}
-
 contract Reach is ERC20, Ownable {
+    using SafeERC20 for IERC20;
     using Address for address payable;
 
     IRouter public router;
