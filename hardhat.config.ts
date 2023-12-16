@@ -6,7 +6,6 @@ import "@nomicfoundation/hardhat-ethers";
 import { configDotenv } from "dotenv";
 configDotenv();
 
-console.log(process.env.INFURA_KEY);
 const config: HardhatUserConfig = {
   solidity: "0.8.19",
   networks: {

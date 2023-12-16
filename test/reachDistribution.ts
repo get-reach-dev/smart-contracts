@@ -52,7 +52,7 @@ describe("Reach Distribution", function () {
     ) as ReachDistribution;
   });
 
-  describe.only("Eth Reserve", function () {
+  describe("Eth Reserve", function () {
     it("Should be able to reserve eth allocation", async function () {
       const address = await addrs[1].getAddress();
       const messageHash = solidityPackedKeccak256(

@@ -1,6 +1,6 @@
 import { expect } from "chai";
-import { formatEther, parseEther } from "ethers";
-import { network, ethers } from "hardhat";
+import { formatEther } from "ethers";
+import { ethers, network } from "hardhat";
 import { BlockchainHelper } from "../services/blockchain";
 import { IERC20, Reach, Reach__factory } from "../typechain-types";
 import { IUniswapV2Router02 } from "../typechain-types/contracts/Uniswap.sol/IUniswapV2Router02";
@@ -14,6 +14,7 @@ let addr1: any;
 let addr2: any;
 let blockchainHelper: BlockchainHelper;
 let weth: IERC20;
+
 describe("$Reach tests", function () {
   console.log("Starting tests");
 
@@ -61,48 +62,99 @@ describe("$Reach tests", function () {
       const receipt = await blockchainHelper.trade({
         amount: "1",
         direction: "buy",
-        signer: addr1,
+        signer: addrs[0],
       });
       expect(receipt).to.not.be.null;
     });
   });
 
+  describe("Should apply antisnipe measures", function () {
+    describe("Antisnipe active", function () {
+      it("Should not be able to buy more than 2% of total supply", async function () {
+        //send 200eth to addrs[0]
+        await blockchainHelper.sendEth(addrs[0]);
+
+        const receipt = await blockchainHelper.trade({
+          amount: "40",
+          direction: "buy",
+          signer: addrs[0],
+        });
+        expect(receipt).to.be.null;
+      });
+
+      it("Should not be able to own more than 4% of total supply", async function () {
+        await blockchainHelper.sendEth(addrs[0]);
+
+        const receipt = await blockchainHelper.trade({
+          amount: "40",
+          direction: "buy",
+          signer: addrs[0],
+        });
+        expect(receipt).to.be.null;
+      });
+
+      it("Should still be able to sell more than 2% of total supply", async function () {
+        await blockchainHelper.sendEth(addrs[0]);
+
+        const receipt = await blockchainHelper.trade({
+          amount: "40",
+          direction: "sell",
+          signer: addrs[0],
+        });
+        expect(receipt).to.not.be.null;
+      });
+    });
+
+    describe("Anti-snipe disabled", async function () {
+      it("Should be able to buy more than 2% of total supply if antisnipe is disabled", async function () {
+        await network.provider.send("evm_increaseTime", [3601]);
+        await network.provider.send("evm_mine");
+        await blockchainHelper.sendEth(addrs[0]);
+
+        const amount = "40";
+        const amountString = amount.toString();
+        const receipt = await blockchainHelper.trade({
+          amount: amountString,
+          direction: "buy",
+          signer: addrs[0],
+        });
+        expect(receipt).to.not.be.null;
+      });
+
+      it("Should be able to own more than 4% of total supply if antisnipe is disabled", async function () {
+        await network.provider.send("evm_increaseTime", [3601]);
+        await network.provider.send("evm_mine");
+        await blockchainHelper.sendEth(addrs[0]);
+
+        const amount = "40";
+        const amountString = amount.toString();
+        const receipt = await blockchainHelper.trade({
+          amount: amountString,
+          direction: "buy",
+          signer: addrs[0],
+        });
+        expect(receipt).to.not.be.null;
+      });
+    });
+  });
+
   describe("Should take fees from trades", function () {
     it("Should take 5% fee from buy", async function () {
-      const tokenAddress = await token.getAddress();
-      const contractBalanceBefore = await token.balanceOf(tokenAddress);
-      await blockchainHelper.trade({
-        amount: "1",
-        direction: "buy",
-        signer: addr1,
-      });
-      const contractBalanceAfter = await token.balanceOf(tokenAddress);
-      const signerBalance = await token.balanceOf(await addr1.getAddress());
-      const diff = contractBalanceAfter - contractBalanceBefore;
-      const totalTrade = signerBalance + diff;
-      const percentage = (diff * BigInt(1e18)) / totalTrade;
-      //percentage needs to be close to 5%
-      const percentageInEth = parseFloat(formatEther(percentage));
-      expect(percentageInEth).to.be.closeTo(0.055, 0.045);
+      const percentage = await blockchainHelper.tradeAndReturnTax(
+        "1",
+        "buy",
+        addrs[0]
+      );
+      expect(percentage).to.be.closeTo(0.05, 0.01);
     });
 
     it("Should take 5% fee from sell", async function () {
-      const tokenAddress = await token.getAddress();
-      const contractBalanceBefore = await token.balanceOf(tokenAddress);
-      const amount = "100000";
-      await token.transfer(await addr1.getAddress(), parseEther(amount));
-      await blockchainHelper.trade({
-        amount: amount,
-        direction: "sell",
-        signer: addr1,
-      });
-      const contractBalanceAfter = await token.balanceOf(tokenAddress);
-      const diff = contractBalanceAfter - contractBalanceBefore;
-      const totalTrade = parseEther(amount) + diff;
-      const percentage = (diff * BigInt(1e18)) / totalTrade;
-      //percentage needs to be close to 5%
-      const percentageInEth = parseFloat(formatEther(percentage));
-      expect(percentageInEth).to.be.closeTo(0.055, 0.045);
+      const percentage = await blockchainHelper.tradeAndReturnTax(
+        "100000",
+        "sell",
+        addrs[0]
+      );
+      expect(percentage).to.be.closeTo(0.05, 0.01);
     });
   });
 

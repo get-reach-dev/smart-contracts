@@ -42,7 +42,7 @@ export class BlockchainHelper {
       const uniswapAddress = await this.uniswap.getAddress();
       const tx = await this.token
         .connect(signer)
-        .approve(uniswapAddress, parseEther("1000000000000000000"));
+        .approve(uniswapAddress, parseEther("100000000"));
       await tx.wait();
     }
 
@@ -73,7 +73,7 @@ export class BlockchainHelper {
       const receipt = await data.wait();
       return receipt;
     } catch (e) {
-      throw e;
+      return null;
     }
   }
 
@@ -89,8 +89,9 @@ export class BlockchainHelper {
     const amountOfTokens = parseEther("7500000");
     const tokenAddress = await this.token.getAddress();
     const uniswapAddress = await this.uniswap.getAddress();
-    await this.token.approve(uniswapAddress, amountOfTokens);
-    await this.uniswap
+    let tx = await this.token.approve(uniswapAddress, amountOfTokens);
+    await tx.wait();
+    tx = await this.uniswap
       .connect(signer)
       .addLiquidityETH(
         tokenAddress,
@@ -101,6 +102,7 @@ export class BlockchainHelper {
         Date.now() + 1000 * 60 * 10,
         { value: amountOfEth }
       );
+    await tx.wait();
   };
 
   runBatchTrades = async (trades: number, direction?: "buy" | "sell") => {
@@ -110,7 +112,7 @@ export class BlockchainHelper {
     let totalFeesCollected = 0;
     for (const addr of this.addrs) {
       //amount should be random between 1 and 30
-      let amount = Math.floor(Math.random() * 30 + 1);
+      let amount = Math.floor(Math.random() * 10 + 1);
 
       const directionInput =
         direction ?? Math.floor(Math.random() * 2) === 0 ? "buy" : "sell";
@@ -155,7 +157,39 @@ export class BlockchainHelper {
   airdrop = async () => {
     for (const addr of this.addrs) {
       await this.sendEth(addr);
-      await this.token.transfer(addr, parseEther("100000"));
+      let tx = await this.token.transfer(addr, parseEther("100000"));
+      await tx.wait();
     }
+  };
+
+  tradeAndReturnTax = async (
+    amount: string,
+    direction: "buy" | "sell",
+    signer: Signer
+  ) => {
+    const tokenAddress = await this.token.getAddress();
+    const contractBalanceBefore = await this.token.balanceOf(tokenAddress);
+    const signertBalanceBefore = await this.token.balanceOf(
+      await signer.getAddress()
+    );
+    await this.trade({
+      amount,
+      direction,
+      signer,
+    });
+    const contractBalanceAfter = await this.token.balanceOf(tokenAddress);
+    const signerBalance = await this.token.balanceOf(await signer.getAddress());
+    const signerBalanceDiff =
+      signertBalanceBefore - signerBalance > 0
+        ? signertBalanceBefore - signerBalance
+        : signerBalance - signertBalanceBefore;
+    const diff = contractBalanceAfter - contractBalanceBefore;
+    const totalTrade =
+      direction === "buy" ? signerBalanceDiff + diff : signerBalanceDiff;
+    if (totalTrade === BigInt(0)) return 0;
+    const percentage = (diff * BigInt(1e18)) / totalTrade;
+    //percentage needs to be close to 5%
+    const percentageInEth = parseFloat(formatEther(percentage));
+    return percentageInEth;
   };
 }

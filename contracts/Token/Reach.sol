@@ -4,6 +4,7 @@ pragma solidity >=0.8.19;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IDex.sol";
+// import {console} from "hardhat/console.sol";
 
 library Address {
     function sendValue(address payable recipient, uint256 amount) internal {
@@ -32,17 +33,13 @@ contract Reach is ERC20, Ownable {
     bool public tradingEnabled;
     address public treasuryWallet = 0x9078696B35d9dc90F658EA0520E8B72c2c0CaF5d;
     uint256 public swapTokensAtAmount = 100_000 * 10 ** 18;
+    uint256 public constant maxTxAmount = 2_000_000 ether;
+    uint256 public constant maxHoldingAmount = 4_000_000 ether;
+    uint256 public antiSnipeExpiresAt;
+
     ///////////////
     //   Fees    //
     ///////////////
-
-    struct Taxes {
-        uint256 treasury;
-        uint256 liquidity;
-    }
-
-    Taxes public buyTaxes = Taxes(4, 1);
-    Taxes public sellTaxes = Taxes(4, 1);
 
     uint256 public totalBuyTax = 5;
     uint256 public totalSellTax = 5;
@@ -146,22 +143,14 @@ contract Reach is ERC20, Ownable {
         swapTokensAtAmount = amount * 10 ** 18;
     }
 
-    function setBuyTaxes(
-        uint256 _treasury,
-        uint256 _liquidity
-    ) external onlyOwner {
-        require(_treasury + _liquidity <= 20, "Fee must be <= 20%");
-        buyTaxes = Taxes(_treasury, _liquidity);
-        totalBuyTax = _treasury + _liquidity;
+    function setBuyTaxes(uint256 _buyTax) external onlyOwner {
+        require(_buyTax <= 20, "Fee must be <= 20%");
+        totalBuyTax = _buyTax;
     }
 
-    function setSellTaxes(
-        uint256 _treasury,
-        uint256 _liquidity
-    ) external onlyOwner {
-        require(_treasury + _liquidity <= 20, "Fee must be <= 20%");
-        sellTaxes = Taxes(_treasury, _liquidity);
-        totalSellTax = _treasury + _liquidity;
+    function setSellTaxes(uint256 _sellTax) external onlyOwner {
+        require(_sellTax <= 20, "Fee must be <= 20%");
+        totalSellTax = _sellTax;
     }
 
     /// @notice Enable or disable internal swaps
@@ -172,6 +161,7 @@ contract Reach is ERC20, Ownable {
 
     function activateTrading() external onlyOwner {
         require(!tradingEnabled, "Trading already enabled");
+        antiSnipeExpiresAt = block.timestamp + 1 hours;
         tradingEnabled = true;
     }
 
@@ -212,6 +202,20 @@ contract Reach is ERC20, Ownable {
     ) internal override {
         require(from != address(0), "ERC20: transfer from the zero address");
         require(to != address(0), "ERC20: transfer to the zero address");
+        if (
+            block.timestamp < antiSnipeExpiresAt && !_isExcludedFromFees[from]
+        ) {
+            require(
+                amount <= maxTxAmount,
+                "Transfer amount exceeds the maxTxAmount."
+            );
+
+            if (automatedMarketMakerPairs[from])
+                require(
+                    balanceOf(to) + amount <= maxHoldingAmount,
+                    "Max holding amount"
+                );
+        }
 
         if (
             !_isExcludedFromFees[from] && !_isExcludedFromFees[to] && !swapping
@@ -264,32 +268,14 @@ contract Reach is ERC20, Ownable {
             amount = amount - feeAmt;
             super._transfer(from, address(this), feeAmt);
         }
+
         super._transfer(from, to, amount);
     }
 
     function swapAndLiquify(uint256 tokens) private {
-        // Split the contract balance into halves
-        // uint256 tokensToAddLiquidityWith = tokens / 2;
-        // uint256 toSwap = tokens - tokensToAddLiquidityWith;
-
-        // uint256 initialBalance = address(this).balance;
-
         swapTokensForETH(tokens);
-
-        // uint256 ETHToAddLiquidityWith = address(this).balance - initialBalance;
-
-        // if (ETHToAddLiquidityWith > 0) {
-        //     // Add liquidity to dex
-        //     addLiquidity(tokensToAddLiquidityWith, ETHToAddLiquidityWith);
-        // }
-
-        // uint256 lpBalance = IERC20(pair).balanceOf(address(this));
-        // if (lpBalance > 0) {
-        //     IERC20(pair).transfer(treasuryWallet, lpBalance);
-        // }
         uint256 ETHbalance = address(this).balance;
         payable(treasuryWallet).sendValue(ETHbalance);
-
         emit FeesCollected(ETHbalance);
     }
 
