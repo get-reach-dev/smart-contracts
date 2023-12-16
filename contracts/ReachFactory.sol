@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: unlicensed
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.19;
 
 import "./ReachDistributionV2.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
