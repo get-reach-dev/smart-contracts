@@ -1,18 +1,12 @@
 import { expect } from "chai";
+import { Signer, getBytes, parseEther, solidityPackedKeccak256 } from "ethers";
 import { ethers } from "hardhat";
-import { ethers as e } from "ethers";
 import {
   Reach,
   ReachDistributionFactory,
   ReachDistributionFactory__factory,
   Reach__factory,
 } from "../typechain-types";
-import {
-  Signer,
-  hashMessage,
-  parseEther,
-  solidityPackedKeccak256,
-} from "ethers";
 
 let addrs: Signer[] = [];
 let Factory: ReachDistributionFactory__factory;
@@ -55,7 +49,7 @@ describe("Reach Factory", function () {
         [address, 5]
       );
 
-      const bytes = e.getBytes(messageHash);
+      const bytes = getBytes(messageHash);
       const signature = await addrs[0].signMessage(bytes);
       const tx = await factory.connect(addrs[1]).topUp(5, signature, 5);
       await tx.wait();
@@ -77,10 +71,10 @@ describe("Reach Factory", function () {
         [address, 5]
       );
 
-      const bytes = e.getBytes(messageHash);
+      const bytes = getBytes(messageHash);
       const signature = await addrs[1].signMessage(bytes);
       const tx = factory.connect(addrs[1]).topUp(5, signature, 5);
-      await expect(tx).to.be.revertedWith("Invalid signature");
+      await expect(tx).to.revertedWithCustomError(factory, "InvalidSignature");
     });
   });
 

@@ -26,8 +26,8 @@ contract Reach is ERC20, Ownable2Step {
     //   Fees    //
     ///////////////
 
-    uint256 public totalBuyTax = 5;
-    uint256 public totalSellTax = 5;
+    uint8 public totalBuyTax = 5;
+    uint8 public totalSellTax = 5;
 
     mapping(address => bool) private _isExcludedFromFees;
     mapping(address => bool) public automatedMarketMakerPairs;
@@ -133,12 +133,12 @@ contract Reach is ERC20, Ownable2Step {
         swapTokensAtAmount = amount * 10 ** 18;
     }
 
-    function setBuyTaxes(uint256 _buyTax) external onlyOwner {
+    function setBuyTaxes(uint8 _buyTax) external onlyOwner {
         require(_buyTax <= 20, "Fee must be <= 20%");
         totalBuyTax = _buyTax;
     }
 
-    function setSellTaxes(uint256 _sellTax) external onlyOwner {
+    function setSellTaxes(uint8 _sellTax) external onlyOwner {
         require(_sellTax <= 20, "Fee must be <= 20%");
         totalSellTax = _sellTax;
     }

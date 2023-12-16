@@ -10,9 +10,24 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
+error InvalidSignature();
+error InvalidMerkleProof();
+error ClaimingPaused();
+error UnsufficientEthAllocation();
+error AlreadyClaimed();
+error InvalidMerkleRoot();
+error UnsufficientEthBalance();
+error UnsufficientReachBalance();
+error InvalidTokenAddress();
+
+/**
+ * @title ReachDistribution
+ * @dev This contract manages the distribution of Reach tokens and Ether based on Merkle proofs.
+ */
 contract ReachDistribution is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    // Events
     event Received(address indexed sender, uint256 amount);
     event RewardsClaimed(
         address indexed account,
@@ -32,11 +47,12 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         uint256 reachAmount
     );
 
+    // State variables
     struct Claims {
         uint256 eth;
         uint256 reach;
     }
-
+    
     mapping(address => Claims) public claims;
     uint256 public currentVersion;
     mapping(address => uint256) public lastClaimedVersion;
@@ -46,87 +62,72 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
     uint256 public minEthAllocation = 0.015 ether;
     mapping(address => uint256) public ethAllocations;
 
+    /**
+     * @dev Constructor for ReachDistribution contract.
+     * @param _reachToken Address of the Reach token.
+     * @param _owner Address of the owner.
+     */
     constructor(address _reachToken, address _owner) {
         reachToken = _reachToken;
         transferOwnership(_owner);
     }
 
+    // Modifiers
     modifier onlySigned(bytes calldata _signature, uint256 _data) {
-        // Recreate the signed message from the provided credits and user's address
         bytes32 messageHash = keccak256(abi.encodePacked(msg.sender, _data));
         bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(
             messageHash
         );
-
-        // Recover the signer from the provided signature
         address signer = ECDSA.recover(ethSignedMessageHash, _signature);
         require(signer == owner(), "Invalid signature");
         _;
     }
 
-    /*
-     * @notice Pauses the contract
+    // External functions
+    /**
+     * @dev Toggles the pausing state of the contract.
      */
     function toggleClaiming() external onlyOwner {
         paused = !paused;
     }
 
-    function verifyProof(
-        bytes32[] calldata _merkleProof,
-        uint256 _ethAmount,
-        uint256 _reachAmount
-    ) internal view returns (bool) {
-        bytes32 _leaf = keccak256(
-            abi.encodePacked(msg.sender, _ethAmount, _reachAmount)
-        );
-
-        return MerkleProof.verify(_merkleProof, merkleRoot, _leaf);
-    }
-
+    /**
+     * @dev Reserves an allocation for ETH for the sender.
+     * @param _signature Signature for verification.
+     * @param _previousBalance Previous balance of the sender.
+     */
     function reserveEthAllocation(
         bytes calldata _signature,
         uint256 _previousBalance
     ) external payable onlySigned(_signature, _previousBalance) {
-        require(msg.value >= minEthAllocation, "Must send ETH");
+        if (msg.value < minEthAllocation) revert UnsufficientEthAllocation();
         ethAllocations[msg.sender] = msg.value + _previousBalance;
-
         emit EthAllocationReserved(msg.sender, msg.value, block.timestamp);
     }
 
-    /*
-     * @notice Allows users to claim rewards
-     * @param _amount The amount to be claimed
-     * @param _merkleProof The merkle proof required for claiming
+    /**
+     * @dev Allows users to claim their rewards.
+     * @param _merkleProof The merkle proof for the claim.
+     * @param _ethAmount The ETH amount to claim.
+     * @param _reachAmount The Reach token amount to claim.
      */
     function claimRewards(
         bytes32[] calldata _merkleProof,
         uint256 _ethAmount,
         uint256 _reachAmount
     ) external nonReentrant {
-        require(!paused, "Claiming is paused.");
-        // Ensure the user is claiming for the current version
-        require(
-            lastClaimedVersion[msg.sender] < currentVersion,
-            "Already claimed for this version."
-        );
-
-        require(
-            verifyProof(_merkleProof, _ethAmount, _reachAmount),
-            "Invalid Merkle Proof."
-        );
+        if (paused) revert ClaimingPaused();
+        if (lastClaimedVersion[msg.sender] == currentVersion)
+            revert AlreadyClaimed();
+        if (!verifyProof(_merkleProof, _ethAmount, _reachAmount))
+            revert InvalidMerkleProof();
 
         lastClaimedVersion[msg.sender] = currentVersion;
+        claims[msg.sender] = Claims({eth: _ethAmount, reach: _reachAmount});
 
-        if (_ethAmount > 0) {
-            claims[msg.sender].eth += _ethAmount;
-            (bool success, ) = payable(msg.sender).call{value: _ethAmount}("");
-            require(success, "Transfer failed.");
-        }
-
-        if (_reachAmount > 0) {
-            claims[msg.sender].reach += _reachAmount;
+        if (_ethAmount > 0) payable(msg.sender).transfer(_ethAmount);
+        if (_reachAmount > 0)
             IERC20(reachToken).safeTransfer(msg.sender, _reachAmount);
-        }
 
         emit RewardsClaimed(
             msg.sender,
@@ -137,55 +138,78 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         );
     }
 
-    /*
-     * @notice Creates a new distribution
-     * @param _merkleRoot The merkle root for the new distribution
-     * @param _amount The total amount for the new distribution
+    /**
+     * @dev Sets the minimum ETH allocation.
+     * @param _amount The new minimum ETH allocation amount.
+     */
+    function setMinEthAllocation(uint256 _amount) external onlyOwner {
+        if (_amount == 0) revert UnsufficientEthAllocation();
+        minEthAllocation = _amount;
+    }
+
+    // Public functions
+    /**
+     * @dev Creates a new distribution of rewards.
+     * @param _merkleRoot The merkle root of the distribution.
+     * @param _ethAmount The total ETH amount for the distribution.
+     * @param _reachAmount The total Reach token amount for the distribution.
      */
     function createDistribution(
         bytes32 _merkleRoot,
         uint256 _ethAmount,
         uint256 _reachAmount
-    ) external onlyOwner {
-        require(_merkleRoot != bytes32(0), "Invalid merkle root.");
-        require(
-            address(this).balance >= _ethAmount,
-            "Insufficient ETH balance."
-        );
-        require(
-            IERC20(reachToken).balanceOf(address(this)) >= _reachAmount,
-            "Insufficient REACH balance."
-        );
+    ) public onlyOwner {
+        if (_merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
+        if (address(this).balance < _ethAmount) revert UnsufficientEthBalance();
+        if (IERC20(reachToken).balanceOf(address(this)) < _reachAmount)
+            revert UnsufficientReachBalance();
+
         currentVersion++;
         merkleRoot = _merkleRoot;
-
         emit DistributionSet(_merkleRoot, _ethAmount, _reachAmount);
     }
 
-    /*
-     * @notice Sets the address of the ERC20 token for distributions
-     * @param _token The address of the ERC20 token
+    /**
+     * @dev Sets the Reach token address.
+     * @param _token The new Reach token address.
      */
-    function setReachAddress(address _token) external onlyOwner {
-        //ensure that the address supports ERC20 interface
-        require(
-            IERC20(_token).totalSupply() > 0,
-            "Invalid ERC20 token address."
-        );
+    function setReachAddress(address _token) public onlyOwner {
+        if (IERC20(_token).totalSupply() == 0) revert InvalidTokenAddress();
         reachToken = _token;
     }
 
-    // Fallback function to receive Ether
+    // Fallback function
+    /**
+     * @dev Fallback function to receive Ether.
+     */
     receive() external payable {
         emit Received(msg.sender, msg.value);
     }
 
-    function setMinEthAllocation(uint256 _amount) external onlyOwner {
-        require(_amount > 0, "Invalid amount");
-        minEthAllocation = _amount;
+    // Internal functions
+    /**
+     * @dev Verifies the Merkle proof for a claim.
+     * @param _merkleProof The Merkle proof.
+     * @param _ethAmount The ETH amount in the claim.
+     * @param _reachAmount The Reach token amount in the claim.
+     * @return bool True if the proof is valid, false otherwise.
+     */
+    function verifyProof(
+        bytes32[] calldata _merkleProof,
+        uint256 _ethAmount,
+        uint256 _reachAmount
+    ) internal view returns (bool) {
+        bytes32 leaf = keccak256(
+            abi.encodePacked(msg.sender, _ethAmount, _reachAmount)
+        );
+        return MerkleProof.verify(_merkleProof, merkleRoot, leaf);
     }
 
+    // Override functions
+    /**
+     * @dev Prevents renouncing ownership.
+     */
     function renounceOwnership() public virtual override onlyOwner {
-        revert("Can't renounce ownership here");
+        revert("Can't renounce ownership");
     }
 }

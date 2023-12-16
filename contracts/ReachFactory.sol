@@ -2,23 +2,30 @@
 pragma solidity 0.8.19;
 
 import "./ReachDistributionV2.sol";
-import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+error InvalidPrice();
+error TopUpError();
+
+/**
+ * @title ReachDistributionFactory
+ * @dev This contract allows for the management of Reach token distributions.
+ */
 contract ReachDistributionFactory is Ownable2Step {
     using SafeERC20 for IERC20;
+
+    // Events
     event ReachAffiliateDistributionCreated(
         address indexed distribution,
         uint256 timestamp
     );
-
     event PricesSet(
         uint256 credits,
         uint256 minEthAllocation,
         uint256 timestamp
     );
-
     event TopUp(
         address indexed user,
         uint256 balance,
@@ -26,17 +33,23 @@ contract ReachDistributionFactory is Ownable2Step {
         uint256 timestamp
     );
 
+    // State variables
     address public reachToken;
     mapping(address => uint256) public credits;
-    ReachDistribution[] public deployedDistributions;
     uint256 public creditPrice = 45 ether;
 
+    /**
+     * @dev Constructor that sets the initial Reach token address.
+     * @param _reachToken The address of the Reach token.
+     */
     constructor(address _reachToken) {
-        require(_reachToken != address(0), "Invalid token address");
-        require(IERC20(_reachToken).totalSupply() > 0, "Not a token");
+        if (_reachToken == address(0)) {
+            revert InvalidTokenAddress();
+        }
         reachToken = _reachToken;
     }
 
+    // Modifiers
     modifier onlySigned(bytes calldata _signature, uint256 _data) {
         // Recreate the signed message from the provided credits and user's address
         bytes32 messageHash = keccak256(abi.encodePacked(msg.sender, _data));
@@ -46,45 +59,75 @@ contract ReachDistributionFactory is Ownable2Step {
 
         // Recover the signer from the provided signature
         address signer = ECDSA.recover(ethSignedMessageHash, _signature);
-        require(signer == owner(), "Invalid signature");
+        if (signer != owner()) {
+            revert InvalidSignature();
+        }
         _;
     }
 
+    // External functions
+    /**
+     * @dev Allows users to top up their credit balance.
+     * @param _amount The amount of credits to add.
+     * @param _signature The signature for verification.
+     * @param _previousBalance The previous balance of the user.
+     */
     function topUp(
         uint256 _amount,
         bytes calldata _signature,
         uint256 _previousBalance
     ) external onlySigned(_signature, _previousBalance) {
         uint256 price = _amount * creditPrice;
-        require(
-            IERC20(reachToken).transferFrom(msg.sender, address(this), price),
-            "Transfer failed"
-        );
+        if (!IERC20(reachToken).transferFrom(msg.sender, address(this), price))
+            revert TopUpError();
 
         credits[msg.sender] = _amount + _previousBalance;
 
         emit TopUp(msg.sender, _amount, _previousBalance, block.timestamp);
     }
 
-    function setCreditPrice(uint256 _price) external onlyOwner {
-        require(_price > 0, "Invalid price");
-        creditPrice = _price;
-    }
-
+    /**
+     * @dev Deploys a new affiliate distribution.
+     */
     function deployAffiliateDistribution() external onlyOwner {
         ReachDistribution newDistribution = new ReachDistribution(
             reachToken,
             owner()
         );
-        deployedDistributions.push(newDistribution);
-
         emit ReachAffiliateDistributionCreated(
             address(newDistribution),
             block.timestamp
         );
     }
 
-    function withdrawTokens() external onlyOwner {
+    // Public functions
+    /**
+     * @dev Sets the price for purchasing credits.
+     * @param _price The new price for credits.
+     */
+    function setCreditPrice(uint256 _price) public onlyOwner {
+        if (_price == 0) {
+            revert InvalidPrice();
+        }
+        creditPrice = _price;
+    }
+
+    /**
+     * @dev Sets the Reach token address.
+     * @param _token The address of the new Reach token.
+     */
+    function setToken(address _token) public onlyOwner {
+        if (_token == address(0) || IERC20(_token).totalSupply() == 0) {
+            revert InvalidTokenAddress();
+        }
+        reachToken = _token;
+    }
+
+    // Internal functions
+    /**
+     * @dev Withdraws all Reach tokens to the owner's address.
+     */
+    function withdrawTokens() internal onlyOwner {
         uint256 balance = IERC20(reachToken).balanceOf(address(this));
         require(
             IERC20(reachToken).transfer(owner(), balance),
@@ -92,16 +135,17 @@ contract ReachDistributionFactory is Ownable2Step {
         );
     }
 
-    function withdrawETH() external onlyOwner {
+    /**
+     * @dev Withdraws all Ether to the owner's address.
+     */
+    function withdrawETH() internal onlyOwner {
         payable(owner()).transfer(address(this).balance);
     }
 
-    function setToken(address _token) external onlyOwner {
-        require(_token != address(0), "Invalid token address");
-        require(IERC20(_token).totalSupply() > 0, "Not a token");
-        reachToken = _token;
-    }
-
+    // Override functions
+    /**
+     * @dev Prevents the ownership from being renounced.
+     */
     function renounceOwnership() public virtual override onlyOwner {
         revert("Can't renounce ownership");
     }
