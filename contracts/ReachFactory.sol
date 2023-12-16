@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: unlicensed
-pragma solidity ^0.8.19;
+pragma solidity 0.8.19;
 
 import "./ReachDistributionV2.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract ReachDistributionFactory is Ownable {
+contract ReachDistributionFactory is Ownable2Step {
     using SafeERC20 for IERC20;
     event ReachAffiliateDistributionCreated(
         address indexed distribution,
@@ -31,7 +31,7 @@ contract ReachDistributionFactory is Ownable {
     ReachDistribution[] public deployedDistributions;
     uint256 public creditPrice = 45 ether;
 
-    constructor(address _reachToken) Ownable() {
+    constructor(address _reachToken) {
         require(_reachToken != address(0), "Invalid token address");
         require(IERC20(_reachToken).totalSupply() > 0, "Not a token");
         reachToken = _reachToken;
