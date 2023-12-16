@@ -4,8 +4,10 @@ pragma solidity >=0.8.19;
 import "./ReachDistributionV2.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract ReachDistributionFactory is Ownable {
+    using SafeERC20 for IERC20;
     event ReachAffiliateDistributionCreated(
         address indexed distribution,
         uint256 timestamp
@@ -30,6 +32,8 @@ contract ReachDistributionFactory is Ownable {
     uint256 public creditPrice = 45 ether;
 
     constructor(address _reachToken) Ownable() {
+        require(_reachToken != address(0), "Invalid token address");
+        require(IERC20(_reachToken).totalSupply() > 0, "Not a token");
         reachToken = _reachToken;
     }
 
@@ -79,11 +83,21 @@ contract ReachDistributionFactory is Ownable {
         );
     }
 
-    function getDeployedDistributions()
-        public
-        view
-        returns (ReachDistribution[] memory)
-    {
-        return deployedDistributions;
+    function withdrawTokens() external onlyOwner {
+        uint256 balance = IERC20(reachToken).balanceOf(address(this));
+        require(
+            IERC20(reachToken).transfer(owner(), balance),
+            "Transfer failed"
+        );
+    }
+
+    function withdrawETH() external onlyOwner {
+        payable(owner()).transfer(address(this).balance);
+    }
+
+    function setToken(address _token) external onlyOwner {
+        require(_token != address(0), "Invalid token address");
+        require(IERC20(_token).totalSupply() > 0, "Not a token");
+        reachToken = _token;
     }
 }
