@@ -179,4 +179,9 @@ contract ReachDistribution is Ownable, ReentrancyGuard {
     receive() external payable {
         emit Received(msg.sender, msg.value);
     }
+
+    function setMinEthAllocation(uint256 _amount) external onlyOwner {
+        require(_amount > 0, "Invalid amount");
+        minEthAllocation = _amount;
+    }
 }

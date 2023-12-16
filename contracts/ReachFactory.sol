@@ -67,6 +67,7 @@ contract ReachDistributionFactory is Ownable {
     }
 
     function setCreditPrice(uint256 _price) external onlyOwner {
+        require(_price > 0, "Invalid price");
         creditPrice = _price;
     }
 

@@ -4,6 +4,7 @@ pragma solidity >=0.8.19;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IDex.sol";
+
 // import {console} from "hardhat/console.sol";
 
 library Address {
@@ -140,6 +141,11 @@ contract Reach is ERC20, Ownable {
 
     /// @notice Update the threshold to swap tokens for liquidity,
     function setSwapTokensAtAmount(uint256 amount) external onlyOwner {
+        //amount should be between 50k and 500k tokens
+        require(
+            amount >= 50_000 && amount <= 500_000,
+            "Amount should be between 50k and 500k tokens"
+        );
         swapTokensAtAmount = amount * 10 ** 18;
     }
 
