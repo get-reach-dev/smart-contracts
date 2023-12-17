@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { formatEther } from "ethers";
+import { formatEther, parseEther } from "ethers";
 import { ethers, network } from "hardhat";
 import { BlockchainHelper } from "../services/blockchain";
 import { IERC20, Reach, Reach__factory } from "../typechain-types";
@@ -17,8 +17,6 @@ let weth: IERC20;
 
 describe("$Reach tests", function () {
   console.log("Starting tests");
-
-  const abiCoder = new ethers.AbiCoder();
   beforeEach(async function () {
     addrs = await ethers.getSigners();
     TokenFactory = await ethers.getContractFactory("Reach");
@@ -38,9 +36,9 @@ describe("$Reach tests", function () {
       network.provider
     );
 
-    await blockchainHelper.sendEth(owner);
-    await blockchainHelper.sendEth(addr1);
-    await blockchainHelper.sendEth(addr2);
+    await BlockchainHelper.sendEth(owner);
+    await BlockchainHelper.sendEth(addr1);
+    await BlockchainHelper.sendEth(addr2);
     await blockchainHelper.airdrop();
 
     await blockchainHelper.addLiquidity(owner);
@@ -70,23 +68,22 @@ describe("$Reach tests", function () {
 
   describe("Should apply antisnipe measures", function () {
     describe("Antisnipe active", function () {
-      it("Should not be able to buy more than 2% of total supply", async function () {
-        //send 200eth to addrs[0]
-        await blockchainHelper.sendEth(addrs[0]);
+      it("Should not be able to buy more than 0.5% of total supply", async function () {
+        await BlockchainHelper.sendEth(addrs[0]);
 
         const receipt = await blockchainHelper.trade({
-          amount: "40",
+          amount: "10",
           direction: "buy",
           signer: addrs[0],
         });
         expect(receipt).to.be.null;
       });
 
-      it("Should not be able to own more than 4% of total supply", async function () {
-        await blockchainHelper.sendEth(addrs[0]);
+      it("Should not be able to own more than 1% of total supply", async function () {
+        await BlockchainHelper.sendEth(addrs[0]);
 
         const receipt = await blockchainHelper.trade({
-          amount: "40",
+          amount: "10",
           direction: "buy",
           signer: addrs[0],
         });
@@ -94,10 +91,10 @@ describe("$Reach tests", function () {
       });
 
       it("Should still be able to sell more than 2% of total supply", async function () {
-        await blockchainHelper.sendEth(addrs[0]);
+        await BlockchainHelper.sendEth(addrs[0]);
 
         const receipt = await blockchainHelper.trade({
-          amount: "40",
+          amount: "10",
           direction: "sell",
           signer: addrs[0],
         });
@@ -106,10 +103,10 @@ describe("$Reach tests", function () {
     });
 
     describe("Anti-snipe disabled", async function () {
-      it("Should be able to buy more than 2% of total supply if antisnipe is disabled", async function () {
-        await network.provider.send("evm_increaseTime", [3601]);
+      it("Should be able to buy more than 0.5% of total supply if antisnipe is disabled", async function () {
+        await network.provider.send("evm_increaseTime", [1801]);
         await network.provider.send("evm_mine");
-        await blockchainHelper.sendEth(addrs[0]);
+        await BlockchainHelper.sendEth(addrs[0]);
 
         const amount = "40";
         const amountString = amount.toString();
@@ -121,10 +118,10 @@ describe("$Reach tests", function () {
         expect(receipt).to.not.be.null;
       });
 
-      it("Should be able to own more than 4% of total supply if antisnipe is disabled", async function () {
+      it("Should be able to own more than 1% of total supply if antisnipe is disabled", async function () {
         await network.provider.send("evm_increaseTime", [3601]);
         await network.provider.send("evm_mine");
-        await blockchainHelper.sendEth(addrs[0]);
+        await BlockchainHelper.sendEth(addrs[0]);
 
         const amount = "40";
         const amountString = amount.toString();
@@ -139,22 +136,22 @@ describe("$Reach tests", function () {
   });
 
   describe("Should take fees from trades", function () {
-    it("Should take 5% fee from buy", async function () {
+    it("Should take 4% fee from buy", async function () {
       const percentage = await blockchainHelper.tradeAndReturnTax(
         "1",
         "buy",
         addrs[0]
       );
-      expect(percentage).to.be.closeTo(0.05, 0.01);
+      expect(percentage).to.be.closeTo(0.04, 0.001);
     });
 
-    it("Should take 5% fee from sell", async function () {
+    it("Should take 4% fee from sell", async function () {
       const percentage = await blockchainHelper.tradeAndReturnTax(
         "100000",
         "sell",
         addrs[0]
       );
-      expect(percentage).to.be.closeTo(0.05, 0.01);
+      expect(percentage).to.be.closeTo(0.04, 0.001);
     });
   });
 
@@ -177,11 +174,17 @@ describe("$Reach tests", function () {
         "IERC20",
         "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
       );
-      const { totalFeesCollected, ethTradeVolume, tokenTradeVolume } =
-        await blockchainHelper.runBatchTrades(1000);
+      const {
+        totalFeesCollected,
+        ethTradeVolume,
+        tokenTradeVolume,
+        accumulatedTokens,
+      } = await blockchainHelper.runBatchTrades(1000);
       const ethBalanceAfter = await network.provider.send("eth_getBalance", [
         treasury,
       ]);
+      const contractBalance = await token.balanceOf(await token.getAddress());
+
       //pair eth balance
       const pair = await token.pair();
       const pairBalance = await weth.balanceOf(pair);
@@ -190,6 +193,8 @@ describe("$Reach tests", function () {
       ethTradeVolume: ${ethTradeVolume} \n
       tokenTradeVolume: ${tokenTradeVolume} \n
       pairBalance: ${formatEther(pairBalance)} \n
+      accumulatedTokens: ${accumulatedTokens} \n
+      contractBalance: ${formatEther(contractBalance)} \n
       `);
 
       expect(totalFeesCollected).to.be.greaterThan(0);
@@ -199,6 +204,41 @@ describe("$Reach tests", function () {
       const feesFirstDigits = totalFeesCollected.toString().slice(0, 2);
       // const feesInEth = parseEther(totalFeesCollected.toString());
       expect(diffFirstDigits).to.equal(feesFirstDigits.toString());
+    });
+  });
+
+  describe("Annex functions", function () {
+    it("Should be able to withdraw tokens", async function () {
+      await token.transfer(await token.getAddress(), "100");
+      const intialBalance = await token.balanceOf(await owner.getAddress());
+      const tx = await token.rescueERC20Tokens(await token.getAddress());
+      await tx.wait();
+      const balance = await token.balanceOf(await owner.getAddress());
+      const diff = balance - intialBalance;
+      expect(diff).to.be.equal(100);
+    });
+
+    it("Should be able to withdraw eth", async function () {
+      //send eth to contract
+      await network.provider.send("hardhat_setBalance", [
+        await token.getAddress(),
+        "0x56BC75E2D63100000",
+      ]);
+
+      const tx = await token.forceSend();
+      await tx.wait();
+      const contractEthBalanceAfter = await network.provider.send(
+        "eth_getBalance",
+        [await token.getAddress()]
+      );
+      expect(contractEthBalanceAfter).to.equal("0x0");
+
+      const treasuryWallet = await token.treasuryWallet();
+      const balance = await network.provider.send("eth_getBalance", [
+        treasuryWallet,
+      ]);
+      //close to 10%
+      expect(balance).to.be.closeTo(parseEther("100"), parseEther("10"));
     });
   });
 });

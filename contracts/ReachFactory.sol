@@ -65,12 +65,30 @@ contract ReachDistributionFactory is Ownable2Step {
     function deployAffiliateDistribution() external onlyOwner {
         ReachDistribution newDistribution = new ReachDistribution(
             reachToken,
-            owner()
+            msg.sender
         );
         emit ReachAffiliateDistributionCreated(
             address(newDistribution),
             block.timestamp
         );
+    }
+
+    /**
+     * @dev Withdraws all Reach tokens to the owner's address.
+     */
+    function withdrawTokens() external onlyOwner {
+        uint256 balance = IERC20(reachToken).balanceOf(address(this));
+        require(
+            IERC20(reachToken).transfer(owner(), balance),
+            "Transfer failed"
+        );
+    }
+
+    /**
+     * @dev Withdraws all Ether to the owner's address.
+     */
+    function withdrawETH() external onlyOwner {
+        payable(owner()).transfer(address(this).balance);
     }
 
     // Public functions
@@ -94,25 +112,6 @@ contract ReachDistributionFactory is Ownable2Step {
             revert InvalidTokenAddress();
         }
         reachToken = _token;
-    }
-
-    // Internal functions
-    /**
-     * @dev Withdraws all Reach tokens to the owner's address.
-     */
-    function withdrawTokens() internal onlyOwner {
-        uint256 balance = IERC20(reachToken).balanceOf(address(this));
-        require(
-            IERC20(reachToken).transfer(owner(), balance),
-            "Transfer failed"
-        );
-    }
-
-    /**
-     * @dev Withdraws all Ether to the owner's address.
-     */
-    function withdrawETH() internal onlyOwner {
-        payable(owner()).transfer(address(this).balance);
     }
 
     // Override functions

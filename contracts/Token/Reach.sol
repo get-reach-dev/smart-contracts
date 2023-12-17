@@ -17,17 +17,17 @@ contract Reach is ERC20, Ownable2Step {
     bool public swapEnabled = true;
     bool public tradingEnabled;
     address public treasuryWallet = 0x9078696B35d9dc90F658EA0520E8B72c2c0CaF5d;
-    uint256 public swapTokensAtAmount = 100_000 * 10 ** 18;
-    uint256 public constant maxTxAmount = 2_000_000 ether;
-    uint256 public constant maxHoldingAmount = 4_000_000 ether;
+    uint256 public swapTokensAtAmount = 50_000 * 10 ** 18; //swap every 0.05% of total supply
+    uint256 public constant maxTxAmount = 250_000 ether;
+    uint256 public constant maxHoldingAmount = 500_000 ether;
     uint256 public antiSnipeExpiresAt;
 
     ///////////////
     //   Fees    //
     ///////////////
 
-    uint8 public totalBuyTax = 5;
-    uint8 public totalSellTax = 5;
+    uint8 public totalBuyTax = 4;
+    uint8 public totalSellTax = 4;
 
     mapping(address => bool) private _isExcludedFromFees;
     mapping(address => bool) public automatedMarketMakerPairs;
@@ -45,7 +45,7 @@ contract Reach is ERC20, Ownable2Step {
     );
     event FeesCollected(uint256 indexed amount);
 
-    constructor() ERC20("Reach", "$Reach") Ownable() {
+    constructor() ERC20("Reach", "$Reach") {
         IRouter _router = IRouter(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
         address _pair = IFactory(_router.factory()).createPair(
             address(this),
@@ -151,7 +151,7 @@ contract Reach is ERC20, Ownable2Step {
 
     function activateTrading() external onlyOwner {
         require(!tradingEnabled, "Trading already enabled");
-        antiSnipeExpiresAt = block.timestamp + 1 hours;
+        antiSnipeExpiresAt = block.timestamp + 30 minutes;
         tradingEnabled = true;
     }
 

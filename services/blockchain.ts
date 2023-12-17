@@ -77,7 +77,7 @@ export class BlockchainHelper {
     }
   }
 
-  sendEth = async (signer: Signer) => {
+  static sendEth = async (signer: Signer) => {
     const signerAddress = await signer.getAddress();
     const amount = "0x56BC75E2D63100000"; // 100 eth
     await network.provider.send("hardhat_setBalance", [signerAddress, amount]);
@@ -85,8 +85,8 @@ export class BlockchainHelper {
 
   addLiquidity = async (signer: Signer) => {
     const signerAddress = await signer.getAddress();
-    const amountOfEth = parseEther("75");
-    const amountOfTokens = parseEther("7500000");
+    const amountOfEth = parseEther("60");
+    const amountOfTokens = parseEther("4000000");
     const tokenAddress = await this.token.getAddress();
     const uniswapAddress = await this.uniswap.getAddress();
     let tx = await this.token.approve(uniswapAddress, amountOfTokens);
@@ -110,6 +110,8 @@ export class BlockchainHelper {
     let ethTradeVolume = 0;
     let tokenTradeVolume = 0;
     let totalFeesCollected = 0;
+    let accumulatedTokens = 0;
+
     for (const addr of this.addrs) {
       //amount should be random between 1 and 30
       let amount = Math.floor(Math.random() * 10 + 1);
@@ -129,6 +131,12 @@ export class BlockchainHelper {
         direction: directionInput,
         signer: addr,
       });
+
+      const contractBalance = await this.token.balanceOf(
+        await this.token.getAddress()
+      );
+
+      accumulatedTokens += parseFloat(formatEther(contractBalance));
 
       const filter = this.token.filters.FeesCollected;
       const events = await this.token.queryFilter(filter, receipt?.blockNumber);
@@ -151,12 +159,13 @@ export class BlockchainHelper {
       ethTradeVolume,
       tokenTradeVolume,
       totalFeesCollected,
+      accumulatedTokens,
     };
   };
 
   airdrop = async () => {
     for (const addr of this.addrs) {
-      await this.sendEth(addr);
+      await BlockchainHelper.sendEth(addr);
       let tx = await this.token.transfer(addr, parseEther("100000"));
       await tx.wait();
     }

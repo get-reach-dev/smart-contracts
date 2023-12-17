@@ -158,7 +158,9 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
      * @param _token The new Reach token address.
      */
     function setReachAddress(address _token) public onlyOwner {
-        if (IERC20(_token).totalSupply() == 0) revert InvalidTokenAddress();
+        if (_token == address(0) || IERC20(_token).totalSupply() == 0) {
+            revert InvalidTokenAddress();
+        }
         reachToken = _token;
     }
 
