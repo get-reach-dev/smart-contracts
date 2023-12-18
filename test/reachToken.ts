@@ -179,7 +179,7 @@ describe("$Reach tests", function () {
         ethTradeVolume,
         tokenTradeVolume,
         accumulatedTokens,
-      } = await blockchainHelper.runBatchTrades(1000);
+      } = await blockchainHelper.runBatchTrades(50);
       const ethBalanceAfter = await network.provider.send("eth_getBalance", [
         treasury,
       ]);

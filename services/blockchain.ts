@@ -106,23 +106,24 @@ export class BlockchainHelper {
   };
 
   runBatchTrades = async (trades: number, direction?: "buy" | "sell") => {
-    let runs = 0;
     let ethTradeVolume = 0;
     let tokenTradeVolume = 0;
     let totalFeesCollected = 0;
     let accumulatedTokens = 0;
 
-    for (const addr of this.addrs) {
-      //amount should be random between 1 and 30
-      let amount = Math.floor(Math.random() * 10 + 1);
+    for (let i = 0; i < trades; i++) {
+      // Randomly select a signer from the list
+      const randomIndex = Math.floor(Math.random() * this.addrs.length);
+      const addr = this.addrs[randomIndex];
+
+      // Random amount for buy or sell
+      let amount =
+        direction === "sell"
+          ? Math.floor(Math.random() * 100000 + 1)
+          : Math.floor(Math.random() * 10 + 1);
 
       const directionInput =
-        direction ?? Math.floor(Math.random() * 2) === 0 ? "buy" : "sell";
-
-      if (directionInput === "sell") {
-        amount = Math.floor(Math.random() * 100000 + 1);
-      }
-
+        direction ?? (Math.floor(Math.random() * 2) === 0 ? "buy" : "sell");
       ethTradeVolume += directionInput === "buy" ? amount : 0;
       tokenTradeVolume += directionInput === "sell" ? amount : 0;
 
@@ -135,7 +136,6 @@ export class BlockchainHelper {
       const contractBalance = await this.token.balanceOf(
         await this.token.getAddress()
       );
-
       accumulatedTokens += parseFloat(formatEther(contractBalance));
 
       const filter = this.token.filters.FeesCollected;
@@ -145,13 +145,6 @@ export class BlockchainHelper {
         totalFeesCollected += parseFloat(
           formatEther(event.args?.amount.toString())
         );
-      }
-      //check if FeesCollected event is emitted
-
-      runs++;
-
-      if (runs === trades) {
-        break;
       }
     }
 

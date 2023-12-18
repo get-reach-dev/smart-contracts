@@ -69,7 +69,7 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
      */
     constructor(address _reachToken, address _owner) {
         reachToken = _reachToken;
-        transferOwnership(_owner);
+        _transferOwnership(_owner);
     }
 
     // External functions

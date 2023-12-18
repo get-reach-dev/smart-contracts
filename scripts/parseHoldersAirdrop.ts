@@ -8,7 +8,7 @@ const main = async () => {
   //remove header
   lines.shift();
   //split on comma
-  const holders = lines.map((line) => line.split("/"));
+  const holders = lines.map((line) => line.split(","));
   //remove empty lines
   const filtered = holders.filter((holder) => holder.length > 1);
 
@@ -16,7 +16,7 @@ const main = async () => {
   for (const holder of filtered) {
     const airdrop = {
       address: holder[0],
-      amount: parseEther(holder[1]),
+      amount: parseEther(holder[1]).toString(),
     };
     airdrops.push(airdrop);
   }

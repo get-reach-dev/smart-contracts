@@ -67,6 +67,7 @@ contract ReachDistributionFactory is Ownable2Step {
             reachToken,
             msg.sender
         );
+
         emit ReachAffiliateDistributionCreated(
             address(newDistribution),
             block.timestamp
@@ -78,10 +79,8 @@ contract ReachDistributionFactory is Ownable2Step {
      */
     function withdrawTokens() external onlyOwner {
         uint256 balance = IERC20(reachToken).balanceOf(address(this));
-        require(
-            IERC20(reachToken).transfer(owner(), balance),
-            "Transfer failed"
-        );
+
+        IERC20(reachToken).safeTransfer(owner(), balance);
     }
 
     /**

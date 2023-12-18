@@ -136,7 +136,6 @@ describe("Reach Factory", function () {
       const balance = await token.balanceOf(await addrs[0].getAddress());
       const diff = balance - initialBalance;
       const creditPrice = await factory.creditPrice();
-
       expect(diff).to.be.equal(creditPrice);
     });
   });

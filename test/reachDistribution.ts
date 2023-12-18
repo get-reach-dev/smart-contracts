@@ -2,9 +2,8 @@ import { expect } from "chai";
 import {
   Signer,
   ethers as e,
-  formatEther,
   parseEther,
-  solidityPackedKeccak256,
+  solidityPackedKeccak256
 } from "ethers";
 import { ethers, network } from "hardhat";
 import Generator, { AirdropRecipient } from "../services/merkle-generator";
@@ -25,6 +24,7 @@ let token: Reach;
 let Distribution: ReachDistribution__factory;
 let distribution: ReachDistribution;
 let generator: Generator;
+
 describe("Reach Distribution", function () {
   beforeEach(async function () {
     addrs = await ethers.getSigners();
@@ -49,7 +49,6 @@ describe("Reach Distribution", function () {
       ReachDistribution__factory.abi,
       addrs[0]
     ) as ReachDistribution;
-    await distribution.acceptOwnership();
   });
 
   describe("Eth Reserve", function () {
