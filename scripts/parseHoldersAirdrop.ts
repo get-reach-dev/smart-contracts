@@ -21,7 +21,12 @@ const main = async () => {
     airdrops.push(airdrop);
   }
 
+  const wallets = filtered.map((holder) => holder[0]);
+  const amounts = filtered.map((holder) => holder[1]);
+
   fs.writeFileSync("./data/airdrops.json", JSON.stringify(airdrops));
+  fs.writeFileSync("./data/wallets.json", JSON.stringify(wallets));
+  fs.writeFileSync("./data/amounts.json", JSON.stringify(amounts));
 };
 
 main();

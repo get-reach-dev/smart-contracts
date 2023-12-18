@@ -74,7 +74,7 @@ contract Reach is ERC20, Ownable2Step {
     /// @notice Withdraw tokens sent by mistake.
     /// @param tokenAddress The address of the token to withdraw
     function rescueERC20Tokens(address tokenAddress) external onlyOwner {
-        IERC20(tokenAddress).transfer(
+        IERC20(tokenAddress).safeTransfer(
             owner(),
             IERC20(tokenAddress).balanceOf(address(this))
         );

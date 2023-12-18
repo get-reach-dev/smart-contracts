@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 error InvalidPrice();
-error TopUpError();
 
 /**
  * @title ReachDistributionFactory
@@ -51,8 +50,7 @@ contract ReachDistributionFactory is Ownable2Step {
      */
     function topUp(uint256 _amount) external {
         uint256 price = _amount * creditPrice;
-        if (!IERC20(reachToken).transferFrom(msg.sender, address(this), price))
-            revert TopUpError();
+        IERC20(reachToken).safeTransferFrom(msg.sender, address(this), price);
 
         credits[msg.sender] += _amount;
 
