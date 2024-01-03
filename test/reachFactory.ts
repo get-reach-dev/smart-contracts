@@ -1,5 +1,4 @@
 import { expect } from "chai";
-import { Signer, parseEther } from "ethers";
 import { ethers, network } from "hardhat";
 import {
   Reach,
@@ -7,8 +6,9 @@ import {
   ReachDistributionFactory__factory,
   Reach__factory,
 } from "../typechain-types";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
-let addrs: Signer[] = [];
+let addrs: HardhatEthersSigner[] = [];
 let Factory: ReachDistributionFactory__factory;
 let factory: ReachDistributionFactory;
 let Token: Reach__factory;
@@ -20,14 +20,16 @@ describe("Reach Factory", function () {
     addrs = await ethers.getSigners();
     Token = await ethers.getContractFactory("Reach");
     token = await Token.deploy();
-    await token.waitForDeployment();
-    await token.transfer(await addrs[1].getAddress(), parseEther("100000000"));
+    await token.deployed();
+    await token.transfer(
+      addrs[1].address,
+      ethers.utils.parseEther("100000000")
+    );
     const tx = await token.activateTrading();
     await tx.wait();
-    const tokenAddress = await token.getAddress();
+    const tokenAddress = token.address;
     Factory = await ethers.getContractFactory("ReachDistributionFactory");
     factory = await Factory.deploy(tokenAddress);
-    creditPrice = await factory.creditPrice();
 
     await factory.waitForDeployment();
   });

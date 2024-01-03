@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: unlicensed
 pragma solidity 0.8.19;
 
-import "./ReachDistributionV2.sol";
+import "./AffiliateDistribution.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-error InvalidPrice();
+error InvalidDistributionAddress();
 
 /**
  * @title ReachDistributionFactory
@@ -20,51 +20,33 @@ contract ReachDistributionFactory is Ownable2Step {
         address indexed distribution,
         uint256 timestamp
     );
-    event PricesSet(
-        uint256 credits,
-        uint256 minEthAllocation,
-        uint256 timestamp
-    );
-    event TopUp(address indexed user, uint256 balance, uint256 timestamp);
 
     // State variables
     address public reachToken;
-    mapping(address => uint256) public credits;
-    uint256 public creditPrice = 45 ether;
+    address public mainDistribution;
 
     /**
      * @dev Constructor that sets the initial Reach token address.
      * @param _reachToken The address of the Reach token.
+     * @param _mainDistribution The address of the main distribution.
      */
-    constructor(address _reachToken) {
+    constructor(address _reachToken, address _mainDistribution) {
         if (_reachToken == address(0)) {
             revert InvalidTokenAddress();
         }
         reachToken = _reachToken;
+        mainDistribution = _mainDistribution;
     }
 
     // External functions
     /**
-     * @dev Allows users to top up their credit balance.
-     * @param _amount The amount of credits to add.
-     */
-    function topUp(uint256 _amount) external {
-        uint256 price = _amount * creditPrice;
-        IERC20(reachToken).safeTransferFrom(msg.sender, address(this), price);
-
-        credits[msg.sender] += _amount;
-
-        emit TopUp(msg.sender, _amount, block.timestamp);
-    }
-
-    /**
      * @dev Deploys a new affiliate distribution.
      */
-    function deployAffiliateDistribution() external onlyOwner {
-        ReachDistribution newDistribution = new ReachDistribution(
-            reachToken,
-            msg.sender
-        );
+    function deployAffiliateDistribution(address _owner) external onlyOwner {
+        ReachAffiliateDistribution newDistribution = new ReachAffiliateDistribution(
+                _owner,
+                mainDistribution
+            );
 
         emit ReachAffiliateDistributionCreated(
             address(newDistribution),
@@ -90,17 +72,6 @@ contract ReachDistributionFactory is Ownable2Step {
 
     // Public functions
     /**
-     * @dev Sets the price for purchasing credits.
-     * @param _price The new price for credits.
-     */
-    function setCreditPrice(uint256 _price) public onlyOwner {
-        if (_price == 0) {
-            revert InvalidPrice();
-        }
-        creditPrice = _price;
-    }
-
-    /**
      * @dev Sets the Reach token address.
      * @param _token The address of the new Reach token.
      */
@@ -109,6 +80,17 @@ contract ReachDistributionFactory is Ownable2Step {
             revert InvalidTokenAddress();
         }
         reachToken = _token;
+    }
+
+    /**
+     * @dev Sets the main distribution address.
+     * @param _mainDistribution The address of the new main distribution.
+     */
+    function setMainDistribution(address _mainDistribution) public onlyOwner {
+        if (_mainDistribution == address(0)) {
+            revert InvalidDistributionAddress();
+        }
+        mainDistribution = _mainDistribution;
     }
 
     // Override functions

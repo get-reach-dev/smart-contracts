@@ -9,11 +9,12 @@
   "dependencies": {
     "@limitbreak/creator-token-contracts": "^1.1.2",
     "@nomicfoundation/hardhat-ethers": "^2.2.3",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@openzeppelin/contracts": "^4.9.3",
     "csv-parser": "^3.0.0",
     "dotenv": "^16.3.1",
     "erc721a": "^4.2.3",
-    "ethers": "^6.7.1",
+    "ethers": "^5.7.2",
     "import": "^0.0.6",
     "keccak256": "^1.0.6",
     "merkletreejs": "^0.3.11",

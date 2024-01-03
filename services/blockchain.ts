@@ -85,7 +85,7 @@ export class BlockchainHelper {
 
   addLiquidity = async (signer: Signer) => {
     const signerAddress = await signer.getAddress();
-    const amountOfEth = parseEther("60");
+    const amountOfEth = parseEther("56");
     const amountOfTokens = parseEther("4000000");
     const tokenAddress = await this.token.getAddress();
     const uniswapAddress = await this.uniswap.getAddress();
@@ -100,7 +100,7 @@ export class BlockchainHelper {
         0,
         signerAddress,
         Date.now() + 1000 * 60 * 10,
-        { value: amountOfEth }
+        { value: amountOfEth, gasPrice: 100000000000 }
       );
     await tx.wait();
   };

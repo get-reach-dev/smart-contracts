@@ -1,4 +1,4 @@
-import { solidityPackedKeccak256 } from "ethers"; // Ethers utils
+import { solidityKeccak256 } from "ethers/lib/utils"; // Ethers utils
 import keccak256 from "keccak256"; // Keccak256 hashing
 import MerkleTree from "merkletreejs"; // MerkleTree.js
 
@@ -37,7 +37,7 @@ export default class Generator {
   generateLeaf(address: string, ethValue: string, reachValue: string): Buffer {
     return Buffer.from(
       // Hash in appropriate Merkle format
-      solidityPackedKeccak256(
+      solidityKeccak256(
         ["address", "uint256", "uint256"],
         [address, ethValue, reachValue]
       ).slice(2),

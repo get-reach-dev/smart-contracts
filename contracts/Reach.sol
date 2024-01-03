@@ -16,7 +16,7 @@ contract Reach is ERC20, Ownable2Step {
     bool private swapping;
     bool public swapEnabled = true;
     bool public tradingEnabled;
-    address public treasuryWallet = 0x9078696B35d9dc90F658EA0520E8B72c2c0CaF5d;
+    address public treasuryWallet = 0x024059d3729302d2EED0CA698B18F611805E699C;
     uint256 public swapTokensAtAmount = 50_000 * 10 ** 18; //swap every 0.05% of total supply
     uint256 public constant maxTxAmount = 250_000 ether;
     uint256 public constant maxHoldingAmount = 500_000 ether;

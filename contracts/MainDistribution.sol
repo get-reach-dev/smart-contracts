@@ -7,8 +7,8 @@ import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProo
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "./interfaces/IDex.sol";
 
 error InvalidSignature();
 error InvalidMerkleProof();
@@ -19,12 +19,13 @@ error InvalidMerkleRoot();
 error UnsufficientEthBalance();
 error UnsufficientReachBalance();
 error InvalidTokenAddress();
+error InvalidPrice();
 
 /**
  * @title ReachDistribution
  * @dev This contract manages the distribution of Reach tokens and Ether based on Merkle proofs.
  */
-contract ReachDistribution is Ownable2Step, ReentrancyGuard {
+contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // Events
@@ -36,16 +37,13 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         uint256 indexed version,
         uint256 timestamp
     );
-    event EthAllocationReserved(
-        address indexed user,
-        uint256 amount,
-        uint256 timestamp
-    );
+    event TopUp(address indexed user, uint256 balance, uint256 timestamp);
     event DistributionSet(
         bytes32 indexed merkleRoot,
         uint256 ethAmount,
         uint256 reachAmount
     );
+    event MissionCreated(string missionId, uint256 amount);
 
     // State variables
     struct Claims {
@@ -53,26 +51,98 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         uint256 reach;
     }
 
+    struct Config {
+        uint256 swapPercentage;
+        uint256 leaderboardPercentage;
+        uint256 rsPercentage;
+        uint256 affiliateLeaderboardPercentage;
+        uint256 affiliateRsPercentage;
+    }
+
+    IRouter public router = IRouter(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+
     mapping(address => Claims) public claims;
     uint256 public currentVersion;
     mapping(address => uint256) public lastClaimedVersion;
     address public reachToken;
     bool public paused;
     bytes32 public merkleRoot;
-    uint256 public minEthAllocation = 0.015 ether;
-    mapping(address => uint256) public ethAllocations;
+    uint256 public creditPrice = 25 ether;
+    uint256 public feesCollected;
+    uint256 public leaderboardPool;
+    uint256 public rsPool;
+    Config public config;
 
     /**
      * @dev Constructor for ReachDistribution contract.
-     * @param _reachToken Address of the Reach token.
-     * @param _owner Address of the owner.
+     * @param _reachToken Address of the reach token.
      */
-    constructor(address _reachToken, address _owner) {
+    constructor(address _reachToken) {
         reachToken = _reachToken;
-        _transferOwnership(_owner);
+        config = Config({
+            swapPercentage: 800,
+            leaderboardPercentage: 875,
+            rsPercentage: 125,
+            affiliateLeaderboardPercentage: 600,
+            affiliateRsPercentage: 400
+        });
     }
 
     // External functions
+    /*
+     * @notice Creates a new mission
+     * @param _missionId The ID of the new mission
+     * @param _amount The amount allocated to the new mission
+     */
+    function createMission(
+        string memory _missionId,
+        uint256 _amount
+    ) external payable {
+        require(_amount > 0, "Amount must be greater than 0.");
+        require(_amount == msg.value, "Incorrect amount sent.");
+
+        uint256 amountToSwap = (_amount * config.swapPercentage) / 1000;
+        swapEth(amountToSwap, address(this));
+        emit MissionCreated(_missionId, _amount);
+    }
+
+    /**
+     * @dev Allows users to top up their credit balance.
+     * @param _amount The amount of credits to add.
+     */
+    function topUp(uint256 _amount) external {
+        uint256 price = _amount * creditPrice;
+        IERC20(reachToken).safeTransferFrom(msg.sender, address(this), price);
+
+        feesCollected += price;
+
+        emit TopUp(msg.sender, _amount, block.timestamp);
+    }
+
+    /**
+     * @dev sets the percentages for the contract
+     * @param _swapPercentage The percentage of the swap
+     * @param _leaderboardPercentage The percentage of the leaderboard
+     * @param _rsPercentage The percentage of the rs
+     * @param _affiliateLeaderboardPercentage The percentage of the affiliate leaderboard
+     * @param _affiliateRsPercentage The percentage of the affiliate rs
+     */
+    function setPercentages(
+        uint256 _swapPercentage,
+        uint256 _leaderboardPercentage,
+        uint256 _rsPercentage,
+        uint256 _affiliateLeaderboardPercentage,
+        uint256 _affiliateRsPercentage
+    ) external onlyOwner {
+        config = Config({
+            swapPercentage: _swapPercentage,
+            leaderboardPercentage: _leaderboardPercentage,
+            rsPercentage: _rsPercentage,
+            affiliateLeaderboardPercentage: _affiliateLeaderboardPercentage,
+            affiliateRsPercentage: _affiliateRsPercentage
+        });
+    }
+
     /**
      * @dev Toggles the pausing state of the contract.
      */
@@ -81,12 +151,12 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
     }
 
     /**
-     * @dev Reserves an allocation for ETH for the sender.
+     * @dev Withdraws all Reach tokens to the owner's address.
      */
-    function reserveEthAllocation() external payable {
-        if (msg.value < minEthAllocation) revert UnsufficientEthAllocation();
-        ethAllocations[msg.sender] += msg.value;
-        emit EthAllocationReserved(msg.sender, msg.value, block.timestamp);
+    function withdrawFees() external onlyOwner {
+        uint256 balance = IERC20(reachToken).balanceOf(address(this));
+        require(balance > feesCollected, "No fees to withdraw.");
+        IERC20(reachToken).safeTransfer(owner(), feesCollected);
     }
 
     /**
@@ -122,16 +192,18 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         );
     }
 
+    // Public functions
     /**
-     * @dev Sets the minimum ETH allocation.
-     * @param _amount The new minimum ETH allocation amount.
+     * @dev Sets the price for purchasing credits.
+     * @param _price The new price for credits.
      */
-    function setMinEthAllocation(uint256 _amount) external onlyOwner {
-        if (_amount == 0) revert UnsufficientEthAllocation();
-        minEthAllocation = _amount;
+    function setCreditPrice(uint256 _price) public onlyOwner {
+        if (_price == 0) {
+            revert InvalidPrice();
+        }
+        creditPrice = _price;
     }
 
-    // Public functions
     /**
      * @dev Creates a new distribution of rewards.
      * @param _merkleRoot The merkle root of the distribution.
@@ -188,7 +260,7 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         bytes32 leaf = keccak256(
             abi.encodePacked(msg.sender, _ethAmount, _reachAmount)
         );
-        return MerkleProof.verify(_merkleProof, merkleRoot, leaf);
+        return MerkleProof.verifyCalldata(_merkleProof, merkleRoot, leaf);
     }
 
     // Override functions
@@ -197,5 +269,33 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
      */
     function renounceOwnership() public virtual override onlyOwner {
         revert("Can't renounce ownership");
+    }
+
+    function swapEth(uint _ethAmount, address _origin) public payable {
+        address[] memory path = new address[](2);
+        path[0] = router.WETH();
+        path[1] = reachToken;
+
+        uint256 balanceBefore = IERC20(reachToken).balanceOf(address(this));
+        // make the swap
+        router.swapExactETHForTokensSupportingFeeOnTransferTokens{
+            value: _ethAmount
+        }(0, path, address(this), block.timestamp + 5);
+
+        uint256 balanceAfter = IERC20(reachToken).balanceOf(address(this));
+        uint256 outputAmount = balanceAfter - balanceBefore;
+        // output the amount of tokens received
+        //if swap is called within this contract
+        if (_origin == address(this)) {
+            leaderboardPool +=
+                (outputAmount * config.leaderboardPercentage) /
+                1000;
+            rsPool += (outputAmount * config.rsPercentage) / 1000;
+        } else {
+            leaderboardPool +=
+                (outputAmount * config.affiliateLeaderboardPercentage) /
+                1000;
+            rsPool += (outputAmount * config.affiliateRsPercentage) / 1000;
+        }
     }
 }

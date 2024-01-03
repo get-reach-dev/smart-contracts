@@ -1,7 +1,7 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-verify";
-import "@nomicfoundation/hardhat-ethers";
+import "@nomiclabs/hardhat-ethers";
 
 import { configDotenv } from "dotenv";
 configDotenv();
@@ -12,11 +12,11 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         url: `https://mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
-        blockNumber: 18812102,
+        blockNumber: 18923863,
       },
     },
     mainnet: {
-      url: `https://mainnet.infura.io/v3/${process.env.INFURA_KEY}}`,
+      url: `https://mainnet.infura.io/v3/1b30c10bf7a646ef9fcc49f304d36ce0`,
       accounts: [`0x${process.env.PRIVATE_KEY}`], // Replace with your private key
     },
     sepolia: {
