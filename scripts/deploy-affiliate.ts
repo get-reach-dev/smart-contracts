@@ -2,7 +2,7 @@ import { ethers } from "hardhat";
 import { contracts } from "../config/contracts";
 
 async function main() {
-  const owner = process.argv[2];
+  const owner = "0x89013a8759e80f3A73E4591FbF90317bBa959b09";
   if (!owner) {
     throw new Error("Please provide an owner address");
   }
@@ -14,15 +14,16 @@ async function main() {
   );
 
   console.log("Deploying affiliate with the account:", deployer.address);
+  console.log("Owner address:", owner);
 
   await factory.deployAffiliateDistribution(owner);
   const filter = factory.filters.ReachAffiliateDistributionCreated();
   const events = await factory.queryFilter(filter);
-  const event = events[events.length - 1];
+  const event = events[0];
 
   const affiliateDistribution = await ethers.getContractAt(
     "ReachAffiliateDistribution",
-    event.args.distribution
+    event.args[0]
   );
 
   console.log(

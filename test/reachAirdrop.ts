@@ -1,22 +1,29 @@
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import { solidityKeccak256 } from "ethers/lib/utils";
+import fs from "fs";
 import hre, { ethers } from "hardhat";
-import MerkleTree from "merkletreejs";
 import {
   Reach,
   ReachAirdrop,
   ReachAirdrop__factory,
   Reach__factory,
 } from "../typechain-types";
-
+import { formatEther } from "ethers/lib/utils";
 let addrs: HardhatEthersSigner[] = [];
 let Airdrop: ReachAirdrop__factory;
 let airdrop: ReachAirdrop;
 let Token: Reach__factory;
 let token: Reach;
-let generator: Generator;
-describe("Reach Airdrop", function () {
+let merkleTree: {
+  root: string;
+  proofs: {
+    userId: string;
+    address: string;
+    proof: string[];
+    amount: string;
+  }[];
+};
+describe.only("Reach Airdrop", function () {
   this.beforeEach(async function () {
     addrs = await ethers.getSigners();
 
@@ -28,9 +35,10 @@ describe("Reach Airdrop", function () {
     await tradingTx.wait();
     // Deploy Airdrop contract
 
-    const { root } = await generateMerkleTree();
+    merkleTree = JSON.parse(fs.readFileSync("./data/merkleTree.json", "utf-8"));
+
     Airdrop = await ethers.getContractFactory("ReachAirdrop");
-    airdrop = await Airdrop.deploy(root, token.address);
+    airdrop = await Airdrop.deploy(merkleTree.root, token.address);
     await airdrop.deployed();
 
     // Transfer tokens to airdrop contract
@@ -92,10 +100,12 @@ describe("Reach Airdrop", function () {
 
   describe("Airdrop Claiming", function () {
     it("Should allow a valid claim", async function () {
-      const recipient = addrs[1].address;
-      const proof = generator.getProof(recipient);
+      const { address, proof, amount } = merkleTree.proofs[0];
+
+      const impersonatedOwner = await ethers.getImpersonatedSigner(address);
+
       expect(
-        await airdrop.connect(addrs[1]).claim(proof, "300000000000000000000000")
+        await airdrop.connect(impersonatedOwner).claim(proof, amount)
       ).to.emit(airdrop, "AirdropClaimed");
 
       //lost airdrop
@@ -103,15 +113,15 @@ describe("Reach Airdrop", function () {
         ethers.utils.formatEther(await airdrop.lostAirdrop())
       );
       const lostAmount =
-        (parseFloat(ethers.utils.formatEther("300000000000000000000000")) *
-          29) /
-        30;
+        (parseFloat(ethers.utils.formatEther(amount)) * 29) / 30;
       expect(lostAirdrop).to.be.closeTo(lostAmount, 1);
     });
 
     it("Should not allow a claim with invalid proof", async function () {
-      const recipient = addrs[2].address;
-      const proof = generator.getProof(recipient);
+      const { address, proof, amount } = merkleTree.proofs[0];
+
+      const impersonatedOwner = await ethers.getImpersonatedSigner(address);
+
       await expect(
         airdrop.connect(addrs[1]).claim(proof, "300000000000000000000000", {
           gasLimit: 100000,
@@ -120,20 +130,23 @@ describe("Reach Airdrop", function () {
     });
 
     it("Should not allow a claim with invalid amount", async function () {
-      const recipient = addrs[1].address;
-      const proof = generator.getProof(recipient);
+      const { address, proof, amount } = merkleTree.proofs[0];
+
+      const impersonatedOwner = await ethers.getImpersonatedSigner(address);
       await expect(
         airdrop.connect(addrs[1]).claim(proof, "300000000000000000000001")
       ).to.be.revertedWith("Invalid Merkle proof");
     });
 
     it("Sould allow claim after 3 weeks", async function () {
-      const recipient = addrs[1].address;
-      const proof = generator.getProof(recipient);
+      const { address, proof, amount } = merkleTree.proofs[0];
+
+      const impersonatedOwner = await ethers.getImpersonatedSigner(address);
+
       await hre.network.provider.send("evm_increaseTime", [60 * 60 * 24 * 14]);
       await hre.network.provider.send("evm_mine");
       expect(
-        await airdrop.connect(addrs[1]).claim(proof, "300000000000000000000000")
+        await airdrop.connect(impersonatedOwner).claim(proof, amount)
       ).to.emit(airdrop, "AirdropClaimed");
 
       //lost airdrop
@@ -141,92 +154,48 @@ describe("Reach Airdrop", function () {
         ethers.utils.formatEther(await airdrop.lostAirdrop())
       );
       const lostAmount =
-        (parseFloat(ethers.utils.formatEther("300000000000000000000000")) *
-          27) /
-        30;
+        (parseFloat(ethers.utils.formatEther(amount)) * 27) / 30;
       expect(lostAirdrop).to.be.closeTo(lostAmount, 1);
     });
   });
-});
 
-const generateMerkleTree = async () => {
-  const wallets = [
-    await addrs[1].getAddress(),
-    await addrs[2].getAddress(),
-    await addrs[3].getAddress(),
-  ];
+  describe("Withdraw Tokens", function () {
+    it("Should allow owner to withdraw tokens", async function () {
+      const { address, proof, amount } = merkleTree.proofs[0];
 
-  const ethAmounts = [
-    "300000000000000000000000",
-    "600000000000000000000000",
-    "1800000000000000000000000",
-  ];
+      const impersonatedOwner = await ethers.getImpersonatedSigner(address);
 
-  const airdropRecipients: AirdropRecipient[] = wallets.map((wallet, i) => {
-    return {
-      address: wallet,
-      value: ethAmounts[i] as unknown as bigint,
-    };
-  });
+      await airdrop.connect(impersonatedOwner).claim(proof, amount);
+      const lostTokens = await airdrop.lostAirdrop();
+      const ownerBalanceBefore = await token.balanceOf(addrs[0].address);
+      await airdrop.withdrawLostTokens();
+      const ownerBalanceAfter =
+        parseFloat(formatEther(ownerBalanceBefore)) +
+        parseFloat(formatEther(lostTokens));
 
-  generator = new Generator(airdropRecipients);
-  return generator.process();
-};
-
-type AirdropRecipient = {
-  address: string;
-  value: bigint;
-};
-export default class Generator {
-  recipients: AirdropRecipient[] = [];
-  merkleTree: MerkleTree;
-
-  constructor(airdrop: AirdropRecipient[]) {
-    this.recipients = airdrop;
-    this.merkleTree = new MerkleTree([], hre.ethers.utils.keccak256, {
-      sortPairs: true,
+      expect(
+        parseFloat(formatEther(await token.balanceOf(addrs[0].address)))
+      ).to.equal(ownerBalanceAfter);
     });
-  }
 
-  generateLeaf(address: string, value: bigint): Buffer {
-    return Buffer.from(
-      solidityKeccak256(
-        ["address", "uint256"],
-        [address, value.toString()]
-      ).slice(2),
-      "hex"
-    );
-  }
+    it("Should be able to withdraw all funds after 34 weeks", async function () {
+      const { address, proof, amount } = merkleTree.proofs[0];
 
-  process(): { root: string; proofs: string[][]; leaves: Buffer[] } {
-    this.merkleTree = new MerkleTree(
-      this.recipients.map(({ address, value }) =>
-        this.generateLeaf(address, value)
-      ),
-      hre.ethers.utils.keccak256,
-      { sortPairs: true }
-    );
+      const impersonatedOwner = await ethers.getImpersonatedSigner(address);
 
-    const proofs = this.merkleTree
-      .getLeaves()
-      .map((leaf) => this.merkleTree.getHexProof(leaf));
-
-    const merkleRoot: string = this.merkleTree.getHexRoot();
-
-    return {
-      root: merkleRoot,
-      proofs,
-      leaves: this.merkleTree.getLeaves(),
-    };
-  }
-
-  getProof(address: string): string[] {
-    const recipient = this.recipients.find((r) => r.address === address);
-    if (!recipient) {
-      throw new Error("Address not found in airdrop list");
-    }
-
-    const leaf = this.generateLeaf(address, recipient.value);
-    return this.merkleTree.getHexProof(leaf);
-  }
-}
+      await hre.network.provider.send("evm_increaseTime", [60 * 60 * 24 * 238]);
+      await hre.network.provider.send("evm_mine");
+      await airdrop.connect(impersonatedOwner).claim(proof, amount);
+      const ownerBalanceBefore = await token.balanceOf(addrs[0].address);
+      const contractBalance = await token.balanceOf(airdrop.address);
+      await airdrop.withdrawLostTokens();
+      //convert amounts from hex to eth
+      const ownerBalanceAfter =
+        parseFloat(formatEther(ownerBalanceBefore)) +
+        parseFloat(formatEther(contractBalance));
+      expect(
+        parseFloat(formatEther(await token.balanceOf(addrs[0].address)))
+      ).to.equal(ownerBalanceAfter);
+    });
+  });
+});

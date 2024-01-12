@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: unlicensed
 pragma solidity 0.8.19;
 
-import "./AffiliateDistribution.sol";
+import "./ReachAffiliateDistribution.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -44,6 +44,7 @@ contract ReachDistributionFactory is Ownable2Step {
      */
     function deployAffiliateDistribution(address _owner) external onlyOwner {
         ReachAffiliateDistribution newDistribution = new ReachAffiliateDistribution(
+                reachToken,
                 _owner,
                 mainDistribution
             );

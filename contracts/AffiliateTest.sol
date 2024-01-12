@@ -8,69 +8,70 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "./MainDistribution.sol";
+import "hardhat/console.sol";
+
+error InvalidSignature();
+error InvalidMerkleProof();
+error ClaimingPaused();
+error UnsufficientEthAllocation();
+error AlreadyClaimed();
+error InvalidMerkleRoot();
+error UnsufficientEthBalance();
+error UnsufficientReachBalance();
+error InvalidTokenAddress();
+error InvalidPrice();
 
 /**
  * @title ReachDistribution
  * @dev This contract manages the distribution of Reach tokens and Ether based on Merkle proofs.
  */
-contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
+contract AffiliateTest is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // Events
     event Received(address indexed sender, uint256 amount);
-    event MissionCreated(string missionId, uint256 amount);
     event RewardsClaimed(
         address indexed account,
-        uint256 amount,
+        uint256 ethAmount,
+        uint256 reachAmount,
         uint256 indexed version,
         uint256 timestamp
     );
-    event DistributionSet(bytes32 indexed merkleRoot, uint256 amount);
-    event SwapPercentageSet(uint256 swapPercentage);
+    event DistributionSet(
+        bytes32 indexed merkleRoot,
+        uint256 ethAmount,
+        uint256 reachAmount
+    );
+    event MissionCreated(string missionId, uint256 amount);
 
-    mapping(address => uint256) public claims;
+    // State variables
+    struct Claims {
+        uint256 eth;
+        uint256 reach;
+    }
+
+    struct Config {
+        uint256 globalPool;
+        uint256 leaderboardPercentage;
+        uint256 amountToSwap;
+    }
+
+    mapping(address => Claims) public claims;
     uint256 public currentVersion;
     mapping(address => uint256) public lastClaimedVersion;
-    address public mainDistribution;
+    address public reachToken;
     bool public paused;
     bytes32 public merkleRoot;
-    uint256 public swapPercentage = 250;
 
     /**
      * @dev Constructor for ReachDistribution contract.
      * @param _owner Address of the owner.
      */
-    constructor(address _owner, address _mainDistribution) {
+    constructor(address _owner) {
         _transferOwnership(_owner);
-        mainDistribution = _mainDistribution;
     }
 
     // External functions
-    /**
-     * @dev Toggles the pausing state of the contract.
-     */
-    function toggleClaiming() external onlyOwner {
-        paused = !paused;
-    }
-
-    /**
-     * @dev Sets the main distribution contract.
-     * @param _mainDistribution The new main distribution contract.
-     */
-    function setMainDistribution(address _mainDistribution) external onlyOwner {
-        mainDistribution = _mainDistribution;
-    }
-
-    /**
-     * @dev Sets the swap percentage.
-     * @param _swapPercentage The new swap percentage.
-     */
-    function setSwapPercentage(uint256 _swapPercentage) external onlyOwner {
-        swapPercentage = _swapPercentage;
-        emit SwapPercentageSet(_swapPercentage);
-    }
-
     /*
      * @notice Creates a new mission
      * @param _missionId The ID of the new mission
@@ -83,35 +84,44 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
         require(_amount > 0, "Amount must be greater than 0.");
         require(_amount == msg.value, "Incorrect amount sent.");
 
-        uint256 amountToSwap = (_amount * swapPercentage) / 1000;
-        ReachMainDistribution(payable(mainDistribution)).swapEth{
-            value: amountToSwap
-        }(amountToSwap, address(this));
         emit MissionCreated(_missionId, _amount);
+    }
+
+    /**
+     * @dev Toggles the pausing state of the contract.
+     */
+    function toggleClaiming() external onlyOwner {
+        paused = !paused;
     }
 
     /**
      * @dev Allows users to claim their rewards.
      * @param _merkleProof The merkle proof for the claim.
-     * @param _amount The  amount to claim.
+     * @param _ethAmount The ETH amount to claim.
+     * @param _reachAmount The Reach token amount to claim.
      */
     function claimRewards(
         bytes32[] calldata _merkleProof,
-        uint256 _amount
+        uint256 _ethAmount,
+        uint256 _reachAmount
     ) external nonReentrant {
         if (paused) revert ClaimingPaused();
         if (lastClaimedVersion[msg.sender] == currentVersion)
             revert AlreadyClaimed();
-        if (!verifyProof(_merkleProof, _amount)) revert InvalidMerkleProof();
+        if (!verifyProof(_merkleProof, _ethAmount, _reachAmount))
+            revert InvalidMerkleProof();
 
         lastClaimedVersion[msg.sender] = currentVersion;
-        claims[msg.sender] += _amount;
+        claims[msg.sender] = Claims({eth: _ethAmount, reach: _reachAmount});
 
-        payable(msg.sender).transfer(_amount);
+        if (_ethAmount > 0) payable(msg.sender).transfer(_ethAmount);
+        if (_reachAmount > 0)
+            IERC20(reachToken).safeTransfer(msg.sender, _reachAmount);
 
         emit RewardsClaimed(
             msg.sender,
-            _amount,
+            _ethAmount,
+            _reachAmount,
             currentVersion,
             block.timestamp
         );
@@ -121,18 +131,22 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
     /**
      * @dev Creates a new distribution of rewards.
      * @param _merkleRoot The merkle root of the distribution.
-     * @param _amount The total ETH amount for the distribution.
+     * @param _ethAmount The total ETH amount for the distribution.
+     * @param _reachAmount The total Reach token amount for the distribution.
      */
     function createDistribution(
         bytes32 _merkleRoot,
-        uint256 _amount
+        uint256 _ethAmount,
+        uint256 _reachAmount
     ) public onlyOwner {
         if (_merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
-        if (address(this).balance < _amount) revert UnsufficientEthBalance();
+        if (address(this).balance < _ethAmount) revert UnsufficientEthBalance();
+        if (IERC20(reachToken).balanceOf(address(this)) < _reachAmount)
+            revert UnsufficientReachBalance();
 
         currentVersion++;
         merkleRoot = _merkleRoot;
-        emit DistributionSet(_merkleRoot, _amount);
+        emit DistributionSet(_merkleRoot, _ethAmount, _reachAmount);
     }
 
     // Fallback function
@@ -147,14 +161,18 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
     /**
      * @dev Verifies the Merkle proof for a claim.
      * @param _merkleProof The Merkle proof.
-     * @param _amount The ETH amount in the claim.
+     * @param _ethAmount The ETH amount in the claim.
+     * @param _reachAmount The Reach token amount in the claim.
      * @return bool True if the proof is valid, false otherwise.
      */
     function verifyProof(
         bytes32[] calldata _merkleProof,
-        uint256 _amount
+        uint256 _ethAmount,
+        uint256 _reachAmount
     ) internal view returns (bool) {
-        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, _amount));
+        bytes32 leaf = keccak256(
+            abi.encodePacked(msg.sender, _ethAmount, _reachAmount)
+        );
         return MerkleProof.verifyCalldata(_merkleProof, merkleRoot, leaf);
     }
 

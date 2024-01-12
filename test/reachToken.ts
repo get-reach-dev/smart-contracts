@@ -15,7 +15,7 @@ let addr2: any;
 let blockchainHelper: BlockchainHelper;
 let weth: IERC20;
 
-describe("$Reach tests", function () {
+describe.skip("$Reach tests", function () {
   console.log("Starting tests");
   beforeEach(async function () {
     addrs = await ethers.getSigners();

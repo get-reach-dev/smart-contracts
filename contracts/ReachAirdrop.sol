@@ -100,4 +100,19 @@ contract ReachAirdrop is Ownable2Step {
 
         return (amount, weeksSinceStart);
     }
+
+    //withdraw lost tokens
+    function withdrawLostTokens() external onlyOwner {
+        uint256 weekNumber = (block.timestamp - airdropStartTimestamp) /
+            1 weeks +
+            1;
+
+        //allow ownerto withdraw all tokens after 34 weeks
+        if (weekNumber > 34)
+            IERC20(reachToken).safeTransfer(
+                msg.sender,
+                IERC20(reachToken).balanceOf(address(this))
+            );
+        else IERC20(reachToken).safeTransfer(msg.sender, lostAirdrop);
+    }
 }
