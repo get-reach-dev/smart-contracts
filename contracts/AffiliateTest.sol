@@ -43,6 +43,7 @@ contract AffiliateTest is Ownable2Step, ReentrancyGuard {
         uint256 reachAmount
     );
     event MissionCreated(string missionId, uint256 amount);
+    event TopUp(address indexed user, uint256 balance, uint256 timestamp);
 
     // State variables
     struct Claims {
@@ -85,6 +86,14 @@ contract AffiliateTest is Ownable2Step, ReentrancyGuard {
         require(_amount == msg.value, "Incorrect amount sent.");
 
         emit MissionCreated(_missionId, _amount);
+    }
+
+    /**
+     * @dev Allows users to top up their credit balance.
+     * @param _amount The amount of credits to add.
+     */
+    function topUp(uint256 _amount) external {
+        emit TopUp(msg.sender, _amount, block.timestamp);
     }
 
     /**

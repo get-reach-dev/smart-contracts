@@ -8,6 +8,8 @@ async function main() {
   }
 
   const [deployer] = await ethers.getSigners();
+  const reach = await ethers.getContractAt("Reach", contracts.reach);
+  
   const factory = await ethers.getContractAt(
     "ReachDistributionFactory",
     contracts.factory

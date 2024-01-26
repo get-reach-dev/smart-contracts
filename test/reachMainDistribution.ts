@@ -1,6 +1,6 @@
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import { parseEther } from "ethers/lib/utils";
+import { formatEther, parseEther } from "ethers/lib/utils";
 import { ethers, network } from "hardhat";
 import Generator, { AirdropRecipient } from "../services/merkle-generator";
 import {
@@ -33,7 +33,7 @@ const UNISWAPV2_ROUTER02_ABI = [
 
 const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
-describe("Reach Distribution", function () {
+describe.only("Reach Distribution", function () {
   beforeEach(async function () {
     addrs = await ethers.getSigners();
     token = await ethers.getContractAt(
@@ -54,7 +54,7 @@ describe("Reach Distribution", function () {
     const tokenAddress = "0x8b12bd54ca9b2311960057c8f3c88013e79316e3";
 
     Distribution = await ethers.getContractFactory("ReachMainDistribution");
-    distribution = await Distribution.deploy(tokenAddress);
+    distribution = await Distribution.deploy();
     await distribution.deployed();
   });
 
@@ -67,56 +67,23 @@ describe("Reach Distribution", function () {
       await tx.wait();
 
       tx = await distribution.topUp(5);
+      const receipt = await tx.wait();
+      const gasUsed = receipt.gasUsed;
       expect(tx).to.emit(distribution, "TopUp");
     });
   });
 
   describe("Create missions", function () {
     it("Should be able to create a mission", async function () {
-      const uniswap = await ethers.getContractAt(
-        UNISWAPV2_ROUTER02_ABI,
-        UNISWAPV2_ROUTER02_ADDRESS
-      );
-
-      let amountEthFromContract = await uniswap.getAmountsOut(
-        1, // 1 ETH
-        [WETH_ADDRESS, token.address]
-      );
       const tx = await distribution
         .connect(addrs[0])
         .createMission("1", parseEther("1"), {
           value: parseEther("1"),
         });
-      expect(tx).to.emit(distribution, "MissionSet");
+      expect(tx).to.emit(distribution, "MissionCreated");
 
-      const leaderboard = await distribution.leaderboardPool();
-      const leader = parseFloat(ethers.utils.formatEther(leaderboard));
-      const rsPool = await distribution.rsPool();
-      const rs = parseFloat(ethers.utils.formatEther(rsPool));
-
-      const balance = await network.provider.send("eth_getBalance", [
-        distribution.address,
-      ]);
-      const balanceInWei = ethers.utils.formatEther(balance);
-
-      const expectedLeaderboard = parseEther(
-        ((BigInt(amountEthFromContract[1]) * BigInt(7)) / BigInt(10)).toString()
-      );
-      const expectedRsPool = parseEther(
-        ((BigInt(amountEthFromContract[1]) * BigInt(1)) / BigInt(10)).toString()
-      );
-
-      const expLeader = parseFloat(
-        ethers.utils.formatEther(expectedLeaderboard)
-      );
-      const expRs = parseFloat(ethers.utils.formatEther(expectedRsPool));
-
-      //70% of the eth should be converted into reach in the leaderboard
-      expect(expLeader).to.be.closeTo(leader, 500);
-      //10% of the eth should be converted into reach in the rs pool
-      expect(expRs).to.be.closeTo(rs, 100);
-      //20% of the eth should be in the contract
-      expect(balanceInWei).to.equal("0.2");
+      const receipt = await tx.wait();
+      const gasUsed = receipt.gasUsed;
     });
   });
 
@@ -221,11 +188,13 @@ describe("Reach Distribution", function () {
       ]);
       const diffBalance = (ethBalance - ethBalanceBefore) / 1e18;
       const reachBalance = await token.balanceOf(address);
+
       const diffReachBalance =
-        BigInt(reachBalance - reachBalanceBefore) / BigInt(1e18);
+        parseFloat(formatEther(reachBalance)) -
+        parseFloat(formatEther(reachBalanceBefore));
       //should be almost 1 eth (minus gas)
       expect(diffBalance).to.be.closeTo(1, 0.01);
-      expect(diffReachBalance).to.be.equal("1000");
+      expect(diffReachBalance).to.be.equal(1000);
     });
 
     it("Should not be able to claim with invalid proof", async function () {
@@ -276,21 +245,6 @@ describe("Reach Distribution", function () {
           )
       ).to.be.reverted;
     });
-
-    it("Should not be able to claim if claiming is paused", async function () {
-      const address = addrs[1].address;
-      const proof = generator.getProof(address);
-      await distribution.toggleClaiming();
-      await expect(
-        distribution
-          .connect(addrs[1])
-          .claimRewards(
-            proof,
-            ethers.utils.parseEther("1"),
-            ethers.utils.parseEther("1000")
-          )
-      ).to.be.reverted;
-    });
   });
 
   describe("Error management", function () {
@@ -299,20 +253,47 @@ describe("Reach Distribution", function () {
     });
   });
 
-  describe("Setters", function () {
-    it("Should be able to set new reach token address", async function () {
-      const Token = await ethers.getContractFactory("Reach");
-      const newToken = await Token.deploy();
-      await newToken.deployed();
-      const address = newToken.address;
-      await distribution.setReachAddress(address);
-      const newTokenAddress = await distribution.reachToken();
-      expect(newTokenAddress).to.equal(address);
+  describe("Swap", function () {
+    it("Should not be able to swap if not owner", async function () {
+      const uniswap = await ethers.getContractAt(
+        UNISWAPV2_ROUTER02_ABI,
+        UNISWAPV2_ROUTER02_ADDRESS
+      );
+
+      let amountOut = await uniswap.getAmountsOut(
+        1, // 1 ETH
+        [WETH_ADDRESS, token.address]
+      );
+      await expect(
+        distribution.connect(addrs[1]).swapEth(parseEther("1"), amountOut[1])
+      ).to.be.reverted;
     });
 
-    it("Should fail if new token address is 0", async function () {
-      const zeroAddress = "0x0000000000000000000000000000000000000000";
-      await expect(distribution.setReachAddress(zeroAddress)).to.be.reverted;
+    it("Should be able to swap", async function () {
+      const uniswap = await ethers.getContractAt(
+        UNISWAPV2_ROUTER02_ABI,
+        UNISWAPV2_ROUTER02_ADDRESS
+      );
+
+      let amountOut = await uniswap.getAmountsOut(
+        parseEther("1"), // 1 ETH
+        [WETH_ADDRESS, token.address]
+      );
+
+      //transfer 1 eth to the contract
+      await network.provider.send("hardhat_setBalance", [
+        distribution.address,
+        parseEther("1"),
+      ]);
+
+      //slippage should be 0.5%
+      const slippage = amountOut[1] / 200;
+      const amount = BigInt(amountOut[1]) - BigInt(slippage);
+      //get hex value
+      const amountHex = "0x" + amount.toString(16);
+      const tx = await distribution.swapEth(parseEther("1"), amountHex);
+
+      expect(tx).to.emit(distribution, "EthSwapped");
     });
   });
 });

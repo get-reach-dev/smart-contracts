@@ -23,7 +23,7 @@ let merkleTree: {
     amount: string;
   }[];
 };
-describe.only("Reach Airdrop", function () {
+describe("Reach Airdrop", function () {
   this.beforeEach(async function () {
     addrs = await ethers.getSigners();
 

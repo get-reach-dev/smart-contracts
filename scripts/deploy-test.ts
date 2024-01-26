@@ -1,14 +1,16 @@
 import { ethers } from "hardhat";
-import { contracts } from "../config/contracts";
+import { AffiliateTest } from "../typechain-types";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
   const Test = await ethers.getContractFactory("AffiliateTest");
-
-  const test = await Test.deploy(deployer.address);
+  const Token = await ethers.getContractFactory("ReachTest");
+  const token = await Token.deploy();
+  await token.deployed();
+  const test = (await Test.deploy(deployer.address)) as AffiliateTest;
   await test.deployed();
 
-  console.log("Test deployed to:", test.address);
+  console.log("Test deployed to:", test.address, token.address);
 }
 
 main()

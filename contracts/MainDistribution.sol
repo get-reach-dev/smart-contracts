@@ -9,6 +9,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "./interfaces/IDex.sol";
+import "hardhat/console.sol";
 
 error InvalidSignature();
 error InvalidMerkleProof();
@@ -29,6 +30,7 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // Events
+    event EthSwapped(uint256 ethAmount, uint256 reachAmount, uint256 timestamp);
     event Received(address indexed sender, uint256 amount);
     event RewardsClaimed(
         address indexed account,
@@ -37,20 +39,24 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
         uint256 indexed version,
         uint256 timestamp
     );
-    event TopUp(address indexed user, uint256 balance, uint256 timestamp);
+    event TopUp(
+        address indexed user,
+        uint256 balance,
+        uint256 feesCollected,
+        uint256 timestamp
+    );
     event DistributionSet(
         bytes32 indexed merkleRoot,
         uint256 ethAmount,
         uint256 reachAmount
     );
     event MissionCreated(string missionId, uint256 amount);
-
-    // State variables
-    struct Claims {
-        uint256 eth;
-        uint256 reach;
-    }
-
+    event Withdrawn(
+        address indexed user,
+        uint256 reachAmount,
+        uint256 ethAmount,
+        uint256 timestamp
+    );
     struct Config {
         uint256 swapPercentage;
         uint256 leaderboardPercentage;
@@ -59,24 +65,17 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
 
     IRouter public router = IRouter(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
 
-    mapping(address => Claims) public claims;
     uint256 public currentVersion;
     mapping(address => uint256) public lastClaimedVersion;
-    address public reachToken;
-    bool public paused;
+    address immutable reachToken = 0x8B12BD54CA9B2311960057C8F3C88013e79316E3;
     bytes32 public merkleRoot;
-    uint256 public creditPrice = 25 ether;
-    uint256 public feesCollected;
-    uint256 public leaderboardPool;
-    uint256 public rsPool;
+    uint256 public creditPrice = 50 ether;
     Config public config;
 
     /**
      * @dev Constructor for ReachDistribution contract.
-     * @param _reachToken Address of the reach token.
      */
-    constructor(address _reachToken) {
-        reachToken = _reachToken;
+    constructor() {
         config = Config({
             swapPercentage: 800,
             leaderboardPercentage: 875,
@@ -96,9 +95,6 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
     ) external payable {
         require(_amount > 0, "Amount must be greater than 0.");
         require(_amount == msg.value, "Incorrect amount sent.");
-
-        uint256 amountToSwap = (_amount * config.swapPercentage) / 1000;
-        swapEth(amountToSwap);
         emit MissionCreated(_missionId, _amount);
     }
 
@@ -107,12 +103,13 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
      * @param _amount The amount of credits to add.
      */
     function topUp(uint256 _amount) external {
-        uint256 price = _amount * creditPrice;
-        IERC20(reachToken).safeTransferFrom(msg.sender, address(this), price);
-
-        feesCollected += price;
-
-        emit TopUp(msg.sender, _amount, block.timestamp);
+        uint256 feesCollected = _amount * creditPrice;
+        IERC20(reachToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            feesCollected
+        );
+        emit TopUp(msg.sender, _amount, feesCollected, block.timestamp);
     }
 
     /**
@@ -134,19 +131,15 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
     }
 
     /**
-     * @dev Toggles the pausing state of the contract.
-     */
-    function toggleClaiming() external onlyOwner {
-        paused = !paused;
-    }
-
-    /**
      * @dev Withdraws all Reach tokens to the owner's address.
      */
-    function withdrawFees() external onlyOwner {
+    function withdraw() external onlyOwner {
         uint256 balance = IERC20(reachToken).balanceOf(address(this));
-        require(balance > feesCollected, "No fees to withdraw.");
-        IERC20(reachToken).safeTransfer(owner(), feesCollected);
+        uint256 ethBalance = address(this).balance;
+        IERC20(reachToken).safeTransfer(msg.sender, balance);
+        payable(msg.sender).transfer(ethBalance);
+
+        emit Withdrawn(msg.sender, balance, ethBalance, block.timestamp);
     }
 
     /**
@@ -160,14 +153,12 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
         uint256 _ethAmount,
         uint256 _reachAmount
     ) external nonReentrant {
-        if (paused) revert ClaimingPaused();
         if (lastClaimedVersion[msg.sender] == currentVersion)
             revert AlreadyClaimed();
         if (!verifyProof(_merkleProof, _ethAmount, _reachAmount))
             revert InvalidMerkleProof();
 
         lastClaimedVersion[msg.sender] = currentVersion;
-        claims[msg.sender] = Claims({eth: _ethAmount, reach: _reachAmount});
 
         if (_ethAmount > 0) payable(msg.sender).transfer(_ethAmount);
         if (_reachAmount > 0)
@@ -215,17 +206,6 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
         emit DistributionSet(_merkleRoot, _ethAmount, _reachAmount);
     }
 
-    /**
-     * @dev Sets the Reach token address.
-     * @param _token The new Reach token address.
-     */
-    function setReachAddress(address _token) public onlyOwner {
-        if (_token == address(0) || IERC20(_token).totalSupply() == 0) {
-            revert InvalidTokenAddress();
-        }
-        reachToken = _token;
-    }
-
     // Fallback function
     /**
      * @dev Fallback function to receive Ether.
@@ -261,7 +241,10 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
         revert("Can't renounce ownership");
     }
 
-    function swapEth(uint _ethAmount) public payable {
+    function swapEth(
+        uint _ethAmount,
+        uint _outputAmount
+    ) external onlyOwner returns (uint256 outputAmount) {
         address[] memory path = new address[](2);
         path[0] = router.WETH();
         path[1] = reachToken;
@@ -270,14 +253,11 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
         // make the swap
         router.swapExactETHForTokensSupportingFeeOnTransferTokens{
             value: _ethAmount
-        }(0, path, address(this), block.timestamp + 5);
+        }(_outputAmount, path, address(this), block.timestamp + 5);
 
         uint256 balanceAfter = IERC20(reachToken).balanceOf(address(this));
-        uint256 outputAmount = balanceAfter - balanceBefore;
-        // output the amount of tokens received
-        //if swap is called within this contract
+        outputAmount = balanceAfter - balanceBefore;
 
-        leaderboardPool += (outputAmount * config.leaderboardPercentage) / 1000;
-        rsPool += (outputAmount * config.rsPercentage) / 1000;
+        emit EthSwapped(_ethAmount, outputAmount, block.timestamp);
     }
 }
