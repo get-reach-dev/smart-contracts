@@ -8,8 +8,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {ReachDistributionFactory} from "./ReachFactory.sol";
+
 import "./interfaces/IDex.sol";
-import "hardhat/console.sol";
 
 error InvalidSignature();
 error InvalidMerkleProof();
@@ -44,63 +45,33 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
         uint256 reachAmount
     );
     event MissionCreated(string missionId, uint256 amount);
-
-    // State variables
-    struct Claims {
-        uint256 eth;
-        uint256 reach;
-    }
-
-    struct Config {
-        uint256 globalPool;
-        uint256 leaderboardPercentage;
-        uint256 amountToSwap;
-    }
+    event EthSwapped(
+        uint256 ethAmount,
+        uint256 reachAmount,
+        uint256 ethCommission,
+        uint256 timestamp
+    );
 
     IRouter public router = IRouter(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
 
-    mapping(address => Claims) public claims;
     uint256 public currentVersion;
     mapping(address => uint256) public lastClaimedVersion;
-    address public reachToken;
-    bool public paused;
+    address immutable reachToken = 0x8B12BD54CA9B2311960057C8F3C88013e79316E3;
+    address public factory;
     bytes32 public merkleRoot;
-    uint256 public leaderboardPool;
-    uint256 public globalPool;
-    Config public config;
-    uint256 public transferThreshold = 50_000 ether;
-    address public mainDistribution;
+    uint256 public transferThreshold = 5_000 ether;
+    uint256 public totalEthAllocated;
 
     /**
      * @dev Constructor for ReachDistribution contract.
-     * @param _reachToken Address of the reach token.
      * @param _owner Address of the owner.
-     * @param _mainDistribution Address of the main distribution.
      */
-    constructor(
-        address _reachToken,
-        address _owner,
-        address _mainDistribution
-    ) {
-        reachToken = _reachToken;
-        config = Config({
-            globalPool: 3125,
-            leaderboardPercentage: 6875,
-            amountToSwap: 80
-        });
-        mainDistribution = _mainDistribution;
+    constructor(address _owner) {
+        factory = msg.sender;
         _transferOwnership(_owner);
     }
 
     // External functions
-    /**
-     * @dev Sets the main distribution address.
-     * @param _mainDistribution The address of the new main distribution.
-     */
-    function setMainDistribution(address _mainDistribution) public onlyOwner {
-        mainDistribution = _mainDistribution;
-    }
-
     /*
      * @notice Creates a new mission
      * @param _missionId The ID of the new mission
@@ -112,43 +83,8 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
     ) external payable {
         require(_amount > 0, "Amount must be greater than 0.");
         require(_amount == msg.value, "Incorrect amount sent.");
-        uint256 amountToSwap = (_amount * config.amountToSwap) / 100;
 
-        swapEth(amountToSwap);
         emit MissionCreated(_missionId, _amount);
-    }
-
-    /**
-     * @dev Sets the transfer threshold.
-     * @param _threshold The new transfer threshold.
-     */
-    function setTransferThreshold(uint256 _threshold) external onlyOwner {
-        transferThreshold = _threshold;
-    }
-
-    /**
-     * @dev sets the percentages for the contract
-     * @param _globalPool The percentage of the swap
-     * @param _leaderboardPercentage The percentage of the leaderboard
-     * @param _amountToSwap The percentage of the swap
-     */
-    function setPercentages(
-        uint256 _globalPool,
-        uint256 _leaderboardPercentage,
-        uint256 _amountToSwap
-    ) external onlyOwner {
-        config = Config({
-            globalPool: _globalPool,
-            leaderboardPercentage: _leaderboardPercentage,
-            amountToSwap: _amountToSwap
-        });
-    }
-
-    /**
-     * @dev Toggles the pausing state of the contract.
-     */
-    function toggleClaiming() external onlyOwner {
-        paused = !paused;
     }
 
     /**
@@ -162,14 +98,12 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
         uint256 _ethAmount,
         uint256 _reachAmount
     ) external nonReentrant {
-        if (paused) revert ClaimingPaused();
         if (lastClaimedVersion[msg.sender] == currentVersion)
             revert AlreadyClaimed();
         if (!verifyProof(_merkleProof, _ethAmount, _reachAmount))
             revert InvalidMerkleProof();
 
         lastClaimedVersion[msg.sender] = currentVersion;
-        claims[msg.sender] = Claims({eth: _ethAmount, reach: _reachAmount});
 
         if (_ethAmount > 0) payable(msg.sender).transfer(_ethAmount);
         if (_reachAmount > 0)
@@ -195,26 +129,17 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
         bytes32 _merkleRoot,
         uint256 _ethAmount,
         uint256 _reachAmount
-    ) public onlyOwner {
+    ) external onlyOwner {
         if (_merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
-        if (address(this).balance < _ethAmount) revert UnsufficientEthBalance();
+        if (address(this).balance < totalEthAllocated)
+            revert UnsufficientEthBalance();
         if (IERC20(reachToken).balanceOf(address(this)) < _reachAmount)
             revert UnsufficientReachBalance();
 
         currentVersion++;
+        totalEthAllocated = 0;
         merkleRoot = _merkleRoot;
         emit DistributionSet(_merkleRoot, _ethAmount, _reachAmount);
-    }
-
-    /**
-     * @dev Sets the Reach token address.
-     * @param _token The new Reach token address.
-     */
-    function setReachAddress(address _token) public onlyOwner {
-        if (_token == address(0) || IERC20(_token).totalSupply() == 0) {
-            revert InvalidTokenAddress();
-        }
-        reachToken = _token;
     }
 
     // Fallback function
@@ -245,33 +170,36 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
     }
 
     // Override functions
-    /**
-     * @dev Prevents renouncing ownership.
-     */
-    function renounceOwnership() public virtual override onlyOwner {
-        revert("Can't renounce ownership");
-    }
-
-    function swapEth(uint _ethAmount) public payable {
+    function swapEth(
+        uint _ethAmount,
+        uint _outputAmount
+    ) external onlyOwner returns (uint256 outputAmount) {
         address[] memory path = new address[](2);
         path[0] = router.WETH();
         path[1] = reachToken;
-
         uint256 balanceBefore = IERC20(reachToken).balanceOf(address(this));
+        address mainDistribution = ReachDistributionFactory(factory)
+            .mainDistribution();
+        uint256 commission = ReachDistributionFactory(factory).commission();
+        uint256 commissionAmount = (_ethAmount * commission) / 100;
+        totalEthAllocated += address(this).balance - _ethAmount;
+
+        // transfer the eth to the main distribution
+        payable(mainDistribution).transfer(commissionAmount);
+
+        // make the swap
         router.swapExactETHForTokensSupportingFeeOnTransferTokens{
             value: _ethAmount
-        }(0, path, address(this), block.timestamp + 5);
-        uint256 balanceAfter = IERC20(reachToken).balanceOf(address(this));
-        uint256 outputAmount = balanceAfter - balanceBefore;
-        leaderboardPool +=
-            (outputAmount * config.leaderboardPercentage) /
-            10000;
-        globalPool += (outputAmount * config.globalPool) / 10000;
+        }(_outputAmount, path, address(this), block.timestamp + 5);
 
-        if (globalPool > transferThreshold) {
-            uint256 amountToTransfer = globalPool;
-            globalPool = 0;
-            IERC20(reachToken).safeTransfer(mainDistribution, amountToTransfer);
-        }
+        uint256 balanceAfter = IERC20(reachToken).balanceOf(address(this));
+        outputAmount = balanceAfter - balanceBefore;
+
+        emit EthSwapped(
+            _ethAmount,
+            outputAmount,
+            commissionAmount,
+            block.timestamp
+        );
     }
 }

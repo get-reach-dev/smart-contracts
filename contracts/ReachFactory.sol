@@ -3,9 +3,6 @@ pragma solidity 0.8.19;
 
 import "./ReachAffiliateDistribution.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 error InvalidDistributionAddress();
 
 /**
@@ -13,8 +10,6 @@ error InvalidDistributionAddress();
  * @dev This contract allows for the management of Reach token distributions.
  */
 contract ReachDistributionFactory is Ownable2Step {
-    using SafeERC20 for IERC20;
-
     // Events
     event ReachAffiliateDistributionCreated(
         address indexed distribution,
@@ -22,19 +17,15 @@ contract ReachDistributionFactory is Ownable2Step {
     );
 
     // State variables
-    address public reachToken;
     address public mainDistribution;
+    mapping(string => address) public affiliates;
+    uint256 public commission = 25;
 
     /**
      * @dev Constructor that sets the initial Reach token address.
-     * @param _reachToken The address of the Reach token.
      * @param _mainDistribution The address of the main distribution.
      */
-    constructor(address _reachToken, address _mainDistribution) {
-        if (_reachToken == address(0)) {
-            revert InvalidTokenAddress();
-        }
-        reachToken = _reachToken;
+    constructor(address _mainDistribution) {
         mainDistribution = _mainDistribution;
     }
 
@@ -42,13 +33,14 @@ contract ReachDistributionFactory is Ownable2Step {
     /**
      * @dev Deploys a new affiliate distribution.
      */
-    function deployAffiliateDistribution(address _owner) external onlyOwner {
+    function deployAffiliateDistribution(
+        string memory _name
+    ) external onlyOwner {
         ReachAffiliateDistribution newDistribution = new ReachAffiliateDistribution(
-                reachToken,
-                _owner,
-                mainDistribution
+                msg.sender
             );
 
+        affiliates[_name] = address(newDistribution);
         emit ReachAffiliateDistributionCreated(
             address(newDistribution),
             block.timestamp
@@ -56,42 +48,24 @@ contract ReachDistributionFactory is Ownable2Step {
     }
 
     /**
-     * @dev Withdraws all Reach tokens to the owner's address.
-     */
-    function withdrawTokens() external onlyOwner {
-        uint256 balance = IERC20(reachToken).balanceOf(address(this));
-
-        IERC20(reachToken).safeTransfer(owner(), balance);
-    }
-
-    /**
-     * @dev Withdraws all Ether to the owner's address.
-     */
-    function withdrawETH() external onlyOwner {
-        payable(owner()).transfer(address(this).balance);
-    }
-
-    // Public functions
-    /**
-     * @dev Sets the Reach token address.
-     * @param _token The address of the new Reach token.
-     */
-    function setToken(address _token) public onlyOwner {
-        if (_token == address(0) || IERC20(_token).totalSupply() == 0) {
-            revert InvalidTokenAddress();
-        }
-        reachToken = _token;
-    }
-
-    /**
      * @dev Sets the main distribution address.
      * @param _mainDistribution The address of the new main distribution.
      */
-    function setMainDistribution(address _mainDistribution) public onlyOwner {
+    function setMainDistribution(address _mainDistribution) external onlyOwner {
         if (_mainDistribution == address(0)) {
             revert InvalidDistributionAddress();
         }
         mainDistribution = _mainDistribution;
+    }
+
+    /**
+     * @dev Sets the affiliate comission.
+     * @param _commission The new affiliate comission.
+     */
+    function setCommission(
+        uint256 _commission
+    ) external onlyOwner {
+        commission = _commission;
     }
 
     // Override functions

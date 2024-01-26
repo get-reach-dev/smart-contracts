@@ -34,10 +34,10 @@ describe("Reach Factory", function () {
     const tokenAddress = token.address;
 
     Distribution = await ethers.getContractFactory("ReachMainDistribution");
-    distribution = await Distribution.deploy(tokenAddress);
+    distribution = await Distribution.deploy();
     await distribution.deployed();
     Factory = await ethers.getContractFactory("ReachDistributionFactory");
-    factory = await Factory.deploy(tokenAddress, distribution.address);
+    factory = await Factory.deploy(distribution.address);
 
     await factory.deployed();
   });
@@ -49,32 +49,11 @@ describe("Reach Factory", function () {
 
   describe("Deploy affiliate", function () {
     it("Should be able to deploy an affiliate", async function () {
-      const tx = await factory.deployAffiliateDistribution(addrs[1].address);
+      const tx = await factory.deployAffiliateDistribution("test");
       await tx.wait();
       const filter = factory.filters.ReachAffiliateDistributionCreated();
       const events = await factory.queryFilter(filter, -1);
       expect(events.length).to.equal(1);
-    });
-  });
-
-  describe("Setters", function () {
-    it("Should be able to set new reach token address", async function () {
-      const newToken = await Token.deploy();
-      await newToken.deployed();
-      const address = newToken.address;
-      await factory.setToken(address);
-      const newTokenAddress = await factory.reachToken();
-      expect(newTokenAddress).to.equal(address);
-    });
-
-    it("Should fail if new token address is 0", async function () {
-      const zeroAddress = "0x0000000000000000000000000000000000000000";
-      await expect(factory.setToken(zeroAddress)).to.be.reverted;
-    });
-
-    it("Should fail if address is not a token", async function () {
-      await expect(factory.setToken(await addrs[1].getAddress())).to.be
-        .reverted;
     });
   });
 

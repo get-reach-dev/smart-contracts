@@ -8,6 +8,7 @@ import {
   ReachMainDistribution,
   ReachMainDistribution__factory,
 } from "../typechain-types";
+import { BigNumber } from "ethers";
 
 let addrs: HardhatEthersSigner[] = [];
 let token: Reach;
@@ -33,7 +34,7 @@ const UNISWAPV2_ROUTER02_ABI = [
 
 const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
-describe.only("Reach Distribution", function () {
+describe("Reach Distribution", function () {
   beforeEach(async function () {
     addrs = await ethers.getSigners();
     token = await ethers.getContractAt(
@@ -281,19 +282,21 @@ describe.only("Reach Distribution", function () {
       );
 
       //transfer 1 eth to the contract
+      const amountToSend = "0x56BC75E2D63100000"; // 100 eth
       await network.provider.send("hardhat_setBalance", [
         distribution.address,
-        parseEther("1"),
+        amountToSend,
       ]);
 
-      //slippage should be 0.5%
-      const slippage = amountOut[1] / 200;
-      const amount = BigInt(amountOut[1]) - BigInt(slippage);
-      //get hex value
-      const amountHex = "0x" + amount.toString(16);
-      const tx = await distribution.swapEth(parseEther("1"), amountHex);
+      const tx = await distribution.swapEth(parseEther("1"), amountOut[1]);
 
       expect(tx).to.emit(distribution, "EthSwapped");
+
+      const totalEthAllocated = await distribution.totalEthAllocated();
+
+      expect(totalEthAllocated.toString()).to.be.equal(
+        parseEther("99").toString()
+      );
     });
   });
 });

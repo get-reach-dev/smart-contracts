@@ -9,7 +9,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "./interfaces/IDex.sol";
-import "hardhat/console.sol";
 
 error InvalidSignature();
 error InvalidMerkleProof();
@@ -70,18 +69,7 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
     address immutable reachToken = 0x8B12BD54CA9B2311960057C8F3C88013e79316E3;
     bytes32 public merkleRoot;
     uint256 public creditPrice = 50 ether;
-    Config public config;
-
-    /**
-     * @dev Constructor for ReachDistribution contract.
-     */
-    constructor() {
-        config = Config({
-            swapPercentage: 800,
-            leaderboardPercentage: 875,
-            rsPercentage: 125
-        });
-    }
+    uint256 public totalEthAllocated;
 
     // External functions
     /*
@@ -110,24 +98,6 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
             feesCollected
         );
         emit TopUp(msg.sender, _amount, feesCollected, block.timestamp);
-    }
-
-    /**
-     * @dev sets the percentages for the contract
-     * @param _swapPercentage The percentage of the swap
-     * @param _leaderboardPercentage The percentage of the leaderboard
-     * @param _rsPercentage The percentage of the rs
-     */
-    function setPercentages(
-        uint256 _swapPercentage,
-        uint256 _leaderboardPercentage,
-        uint256 _rsPercentage
-    ) external onlyOwner {
-        config = Config({
-            swapPercentage: _swapPercentage,
-            leaderboardPercentage: _leaderboardPercentage,
-            rsPercentage: _rsPercentage
-        });
     }
 
     /**
@@ -197,12 +167,14 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
         uint256 _reachAmount
     ) public onlyOwner {
         if (_merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
-        if (address(this).balance < _ethAmount) revert UnsufficientEthBalance();
+        if (address(this).balance < totalEthAllocated)
+            revert UnsufficientEthBalance();
         if (IERC20(reachToken).balanceOf(address(this)) < _reachAmount)
             revert UnsufficientReachBalance();
 
         currentVersion++;
         merkleRoot = _merkleRoot;
+        totalEthAllocated = 0;
         emit DistributionSet(_merkleRoot, _ethAmount, _reachAmount);
     }
 
@@ -248,12 +220,13 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
         address[] memory path = new address[](2);
         path[0] = router.WETH();
         path[1] = reachToken;
-
         uint256 balanceBefore = IERC20(reachToken).balanceOf(address(this));
+        totalEthAllocated += address(this).balance - _ethAmount;
+
         // make the swap
         router.swapExactETHForTokensSupportingFeeOnTransferTokens{
             value: _ethAmount
-        }(_outputAmount, path, address(this), block.timestamp + 5);
+        }(_outputAmount, path, address(this), block.timestamp);
 
         uint256 balanceAfter = IERC20(reachToken).balanceOf(address(this));
         outputAmount = balanceAfter - balanceBefore;
