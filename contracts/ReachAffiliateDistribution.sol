@@ -55,6 +55,7 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
     address immutable reachToken = 0x8B12BD54CA9B2311960057C8F3C88013e79316E3;
     address public factory;
     bytes32 public merkleRoot;
+    uint256 public minMissionAmount = 0.05 ether;
 
     /**
      * @dev Constructor for ReachDistribution contract.
@@ -66,6 +67,14 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
     }
 
     // External functions
+    /**
+     * @dev Allows the owner to set the minimum amount for a mission.
+     * @param _minMissionAmount The minimum amount for a mission.
+     */
+    function setMinMissionAmount(uint256 _minMissionAmount) external onlyOwner {
+        minMissionAmount = _minMissionAmount;
+    }
+
     /*
      * @notice Creates a new mission
      * @param _missionId The ID of the new mission
@@ -75,9 +84,7 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
         string memory _missionId,
         uint256 _amount
     ) external payable {
-        require(_amount > 0, "Amount must be greater than 0.");
-        require(_amount == msg.value, "Incorrect amount sent.");
-
+        if (msg.value < _amount) revert UnsufficientEthAllocation();
         emit MissionCreated(_missionId, _amount);
     }
 

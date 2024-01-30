@@ -70,8 +70,17 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
     bytes32 public merkleRoot;
     uint256 public creditPrice = 50 ether;
     uint256 public totalEthAllocated;
+    uint256 public minMissionAmount = 0.015 ether;
 
     // External functions
+    /**
+     * @dev Allows the owner to set the minimum amount for a mission.
+     * @param _minMissionAmount The minimum amount for a mission.
+     */
+    function setMinMissionAmount(uint256 _minMissionAmount) external onlyOwner {
+        minMissionAmount = _minMissionAmount;
+    }
+
     /*
      * @notice Creates a new mission
      * @param _missionId The ID of the new mission
@@ -81,8 +90,7 @@ contract ReachMainDistribution is Ownable2Step, ReentrancyGuard {
         string memory _missionId,
         uint256 _amount
     ) external payable {
-        require(_amount > 0, "Amount must be greater than 0.");
-        require(_amount == msg.value, "Incorrect amount sent.");
+        if (msg.value < _amount) revert UnsufficientEthAllocation();
         emit MissionCreated(_missionId, _amount);
     }
 
