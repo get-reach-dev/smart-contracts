@@ -41,7 +41,7 @@ const UNISWAPV2_ROUTER02_ABI = [
 
 const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
-describe.only("Reach Affiliate Distribution", function () {
+describe("Reach Affiliate Distribution", function () {
   beforeEach(async function () {
     addrs = await ethers.getSigners();
     token = await ethers.getContractAt(

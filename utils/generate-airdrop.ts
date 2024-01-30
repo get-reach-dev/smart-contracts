@@ -86,11 +86,6 @@ const generateMerkleTree = async () => {
     (acc: number, curr: any) => acc + parseFloat(formatEther(curr.value)),
     0
   );
-  console.log(
-    "🚀 ~ file: generate-airdrop.ts:89 ~ generateMerkleTree ~ total:",
-    total
-  );
-
   fs.writeFileSync(
     "./data/merkleTree.json",
     JSON.stringify({ root, proofs: proofData }, null, 2)

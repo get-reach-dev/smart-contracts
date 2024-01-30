@@ -178,7 +178,7 @@ describe("Reach Distribution", function () {
         .connect(addrs[1])
         .claimRewards(
           proof,
-          ethers.utils.parseEther("1"),
+          ethers.utils.parseEther("0.1"),
           ethers.utils.parseEther("1000")
         );
       expect(tx).to.emit(distribution, "RewardsClaimed");
@@ -194,7 +194,7 @@ describe("Reach Distribution", function () {
         parseFloat(formatEther(reachBalance)) -
         parseFloat(formatEther(reachBalanceBefore));
       //should be almost 1 eth (minus gas)
-      expect(diffBalance).to.be.closeTo(1, 0.01);
+      expect(diffBalance).to.be.closeTo(0.1, 0.01);
       expect(diffReachBalance).to.be.equal(1000);
     });
 
@@ -206,7 +206,7 @@ describe("Reach Distribution", function () {
           .connect(addrs[1])
           .claimRewards(
             proof,
-            ethers.utils.parseEther("1"),
+            ethers.utils.parseEther("0.1"),
             ethers.utils.parseEther("1000")
           )
       ).to.be.reverted;
@@ -233,7 +233,7 @@ describe("Reach Distribution", function () {
         .connect(addrs[1])
         .claimRewards(
           proof,
-          ethers.utils.parseEther("1"),
+          ethers.utils.parseEther("0.1"),
           ethers.utils.parseEther("1000")
         );
       await expect(
@@ -241,7 +241,7 @@ describe("Reach Distribution", function () {
           .connect(addrs[1])
           .claimRewards(
             proof,
-            ethers.utils.parseEther("1"),
+            ethers.utils.parseEther("0.1"),
             ethers.utils.parseEther("1000")
           )
       ).to.be.reverted;
@@ -304,7 +304,7 @@ describe("Reach Distribution", function () {
 const generateMerkleTree = async () => {
   const wallets = [addrs[1].address, addrs[2].address, addrs[3].address];
   const ethAmounts = [
-    ethers.utils.parseEther("1"),
+    ethers.utils.parseEther("0.1"),
     ethers.utils.parseEther("2"),
     ethers.utils.parseEther("3"),
   ];

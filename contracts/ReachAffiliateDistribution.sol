@@ -39,11 +39,7 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
         uint256 indexed version,
         uint256 timestamp
     );
-    event DistributionSet(
-        bytes32 indexed merkleRoot,
-        uint256 ethAmount,
-        uint256 reachAmount
-    );
+    event DistributionSet(bytes32 indexed merkleRoot);
     event MissionCreated(string missionId, uint256 amount);
     event EthSwapped(
         uint256 ethAmount,
@@ -59,8 +55,6 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
     address immutable reachToken = 0x8B12BD54CA9B2311960057C8F3C88013e79316E3;
     address public factory;
     bytes32 public merkleRoot;
-    uint256 public transferThreshold = 5_000 ether;
-    uint256 public totalEthAllocated;
 
     /**
      * @dev Constructor for ReachDistribution contract.
@@ -122,24 +116,13 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
     /**
      * @dev Creates a new distribution of rewards.
      * @param _merkleRoot The merkle root of the distribution.
-     * @param _ethAmount The total ETH amount for the distribution.
-     * @param _reachAmount The total Reach token amount for the distribution.
      */
-    function createDistribution(
-        bytes32 _merkleRoot,
-        uint256 _ethAmount,
-        uint256 _reachAmount
-    ) external onlyOwner {
+    function createDistribution(bytes32 _merkleRoot) external onlyOwner {
         if (_merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
-        if (address(this).balance < totalEthAllocated)
-            revert UnsufficientEthBalance();
-        if (IERC20(reachToken).balanceOf(address(this)) < _reachAmount)
-            revert UnsufficientReachBalance();
 
         currentVersion++;
-        totalEthAllocated = 0;
         merkleRoot = _merkleRoot;
-        emit DistributionSet(_merkleRoot, _ethAmount, _reachAmount);
+        emit DistributionSet(_merkleRoot);
     }
 
     // Fallback function
@@ -182,7 +165,6 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
             .mainDistribution();
         uint256 commission = ReachDistributionFactory(factory).commission();
         uint256 commissionAmount = (_ethAmount * commission) / 100;
-        totalEthAllocated += address(this).balance - _ethAmount;
 
         // transfer the eth to the main distribution
         payable(mainDistribution).transfer(commissionAmount);
@@ -190,7 +172,7 @@ contract ReachAffiliateDistribution is Ownable2Step, ReentrancyGuard {
         // make the swap
         router.swapExactETHForTokensSupportingFeeOnTransferTokens{
             value: _ethAmount
-        }(_outputAmount, path, address(this), block.timestamp + 5);
+        }(_outputAmount, path, address(this), block.timestamp);
 
         uint256 balanceAfter = IERC20(reachToken).balanceOf(address(this));
         outputAmount = balanceAfter - balanceBefore;
