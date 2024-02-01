@@ -1,5 +1,6 @@
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
+import { Signer } from "ethers";
+import { formatEther } from "ethers/lib/utils";
 import fs from "fs";
 import hre, { ethers } from "hardhat";
 import {
@@ -8,8 +9,7 @@ import {
   ReachAirdrop__factory,
   Reach__factory,
 } from "../typechain-types";
-import { formatEther } from "ethers/lib/utils";
-let addrs: HardhatEthersSigner[] = [];
+let addrs: Signer[] = [];
 let Airdrop: ReachAirdrop__factory;
 let airdrop: ReachAirdrop;
 let Token: Reach__factory;
@@ -23,7 +23,7 @@ let merkleTree: {
     amount: string;
   }[];
 };
-describe.skip("Reach Airdrop", function () {
+describe("Reach Airdrop", function () {
   this.beforeEach(async function () {
     addrs = await ethers.getSigners();
 
@@ -51,7 +51,7 @@ describe.skip("Reach Airdrop", function () {
 
   describe("Deployment", function () {
     it("Should set the right owner", async function () {
-      expect(await airdrop.owner()).to.equal(addrs[0].address);
+      expect(await airdrop.owner()).to.equal(await addrs[0].getAddress());
     });
   });
 
@@ -167,14 +167,18 @@ describe.skip("Reach Airdrop", function () {
 
       await airdrop.connect(impersonatedOwner).claim(proof, amount);
       const lostTokens = await airdrop.lostAirdrop();
-      const ownerBalanceBefore = await token.balanceOf(addrs[0].address);
+      const ownerBalanceBefore = await token.balanceOf(
+        await addrs[0].getAddress()
+      );
       await airdrop.withdrawLostTokens();
       const ownerBalanceAfter =
         parseFloat(formatEther(ownerBalanceBefore)) +
         parseFloat(formatEther(lostTokens));
 
       expect(
-        parseFloat(formatEther(await token.balanceOf(addrs[0].address)))
+        parseFloat(
+          formatEther(await token.balanceOf(await addrs[0].getAddress()))
+        )
       ).to.equal(ownerBalanceAfter);
     });
 
@@ -186,7 +190,9 @@ describe.skip("Reach Airdrop", function () {
       await hre.network.provider.send("evm_increaseTime", [60 * 60 * 24 * 238]);
       await hre.network.provider.send("evm_mine");
       await airdrop.connect(impersonatedOwner).claim(proof, amount);
-      const ownerBalanceBefore = await token.balanceOf(addrs[0].address);
+      const ownerBalanceBefore = await token.balanceOf(
+        await addrs[0].getAddress()
+      );
       const contractBalance = await token.balanceOf(airdrop.address);
       await airdrop.withdrawLostTokens();
       //convert amounts from hex to eth
@@ -194,7 +200,9 @@ describe.skip("Reach Airdrop", function () {
         parseFloat(formatEther(ownerBalanceBefore)) +
         parseFloat(formatEther(contractBalance));
       expect(
-        parseFloat(formatEther(await token.balanceOf(addrs[0].address)))
+        parseFloat(
+          formatEther(await token.balanceOf(await addrs[0].getAddress()))
+        )
       ).to.equal(ownerBalanceAfter);
     });
   });

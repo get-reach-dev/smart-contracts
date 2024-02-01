@@ -1,17 +1,18 @@
 import { expect } from "chai";
-import { formatEther, parseEther } from "ethers";
+import { formatEther, parseEther } from "ethers/lib/utils";
 import { ethers, network } from "hardhat";
 import { BlockchainHelper } from "../services/blockchain";
 import { IERC20, Reach, Reach__factory } from "../typechain-types";
 import { IUniswapV2Router02 } from "../typechain-types/contracts/Uniswap.sol/IUniswapV2Router02";
+import { Signer } from "ethers";
 
-let addrs: any[] = [];
+let addrs: Signer[] = [];
 let TokenFactory: Reach__factory;
 let uniswap: IUniswapV2Router02;
 let token: Reach;
-let owner: any;
-let addr1: any;
-let addr2: any;
+let owner: Signer;
+let addr1: Signer;
+let addr2: Signer;
 let blockchainHelper: BlockchainHelper;
 let weth: IERC20;
 
@@ -26,7 +27,7 @@ describe.skip("$Reach tests", function () {
     );
     [owner, addr1, addr2, ...addrs] = await ethers.getSigners();
     token = await TokenFactory.deploy();
-    await token.waitForDeployment();
+    await token.deployed();
     await token.activateTrading();
 
     blockchainHelper = new BlockchainHelper(
@@ -42,12 +43,6 @@ describe.skip("$Reach tests", function () {
     await blockchainHelper.airdrop();
 
     await blockchainHelper.addLiquidity(owner);
-  });
-
-  describe("Deployment", function () {
-    it("Should set the right owner", async function () {
-      expect(await token.owner()).to.equal(owner.address);
-    });
   });
 
   describe("Should allow trading if active", function () {
@@ -183,7 +178,7 @@ describe.skip("$Reach tests", function () {
       const ethBalanceAfter = await network.provider.send("eth_getBalance", [
         treasury,
       ]);
-      const contractBalance = await token.balanceOf(await token.getAddress());
+      const contractBalance = await token.balanceOf(token.address);
 
       //pair eth balance
       const pair = await token.pair();
@@ -209,9 +204,9 @@ describe.skip("$Reach tests", function () {
 
   describe("Annex functions", function () {
     it("Should be able to withdraw tokens", async function () {
-      await token.transfer(await token.getAddress(), "100");
+      await token.transfer(token.address, "100");
       const intialBalance = await token.balanceOf(await owner.getAddress());
-      const tx = await token.rescueERC20Tokens(await token.getAddress());
+      const tx = await token.rescueERC20Tokens(token.address);
       await tx.wait();
       const balance = await token.balanceOf(await owner.getAddress());
       const diff = balance - intialBalance;
@@ -221,7 +216,7 @@ describe.skip("$Reach tests", function () {
     it("Should be able to withdraw eth", async function () {
       //send eth to contract
       await network.provider.send("hardhat_setBalance", [
-        await token.getAddress(),
+        token.address,
         "0x56BC75E2D63100000",
       ]);
 
@@ -229,7 +224,7 @@ describe.skip("$Reach tests", function () {
       await tx.wait();
       const contractEthBalanceAfter = await network.provider.send(
         "eth_getBalance",
-        [await token.getAddress()]
+        [token.address]
       );
       expect(contractEthBalanceAfter).to.equal("0x0");
 

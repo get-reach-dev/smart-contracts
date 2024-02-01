@@ -1,25 +1,19 @@
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
+import { Signer } from "ethers";
 import { parseEther } from "ethers/lib/utils";
 import { ethers, network } from "hardhat";
 import Generator, { AirdropRecipient } from "../services/merkle-generator";
 import {
   Reach,
   ReachAffiliateDistribution,
-  ReachAffiliateDistribution__factory,
   ReachDistributionFactory,
-  ReachDistributionFactory__factory,
   ReachMainDistribution,
-  ReachMainDistribution__factory,
 } from "../typechain-types";
 
-let addrs: HardhatEthersSigner[] = [];
+let addrs: Signer[] = [];
 let token: Reach;
-let Factory: ReachDistributionFactory__factory;
 let factory: ReachDistributionFactory;
-let Distribution: ReachAffiliateDistribution__factory;
 let distribution: ReachAffiliateDistribution;
-let MainDistribution: ReachMainDistribution__factory;
 let mainDistribution: ReachMainDistribution;
 let generator: Generator;
 
@@ -54,11 +48,14 @@ describe("Reach Affiliate Distribution", function () {
 
     await token
       .connect(impersonatedOwner)
-      .transfer(addrs[1].address, ethers.utils.parseEther("100000"));
+      .transfer(await addrs[1].getAddress(), ethers.utils.parseEther("100000"));
 
     await token
       .connect(impersonatedOwner)
-      .transfer(addrs[0].address, ethers.utils.parseEther("1000000"));
+      .transfer(
+        await addrs[0].getAddress(),
+        ethers.utils.parseEther("1000000")
+      );
     const tokenAddress = "0x8b12bd54ca9b2311960057c8f3c88013e79316e3";
 
     const MainDistribution = await ethers.getContractFactory(
@@ -70,7 +67,7 @@ describe("Reach Affiliate Distribution", function () {
     const Factory = await ethers.getContractFactory("ReachDistributionFactory");
     factory = await Factory.deploy(mainDistribution.address);
     await factory.deployed();
-    await factory.deployAffiliateDistribution(addrs[0].address);
+    await factory.deployAffiliateDistribution(await addrs[0].getAddress());
     const filter = factory.filters.ReachAffiliateDistributionCreated();
     const event = await factory.queryFilter(filter);
     const address = event[0].args[0];
@@ -127,25 +124,9 @@ describe("Reach Affiliate Distribution", function () {
 
       const tx = await distribution
         .connect(impersonatedOwner)
-        .createDistribution(
-          root,
-          ethers.utils.parseEther("6"),
-          ethers.utils.parseEther("10000")
-        );
+        .createDistribution(root);
 
       expect(tx).to.emit(distribution, "DistributionSet");
-    });
-
-    it("Should not be able to generate a distribution with unsufficient ETH", async function () {
-      await expect(
-        distribution
-          .connect(addrs[0])
-          .createDistribution(
-            root,
-            ethers.utils.parseEther("6"),
-            ethers.utils.parseEther("10000")
-          )
-      ).to.be.reverted;
     });
   });
 
@@ -166,13 +147,11 @@ describe("Reach Affiliate Distribution", function () {
       const impersonatedOwner = await ethers.getImpersonatedSigner(owner);
       //sset balance
       await network.provider.send("hardhat_setBalance", [owner, amount]);
-      await distribution
-        .connect(impersonatedOwner)
-        .createDistribution(root, ethers.utils.parseEther("6"), 10000);
+      await distribution.connect(impersonatedOwner).createDistribution(root);
     });
 
     it("Should be able to claim", async function () {
-      const address = addrs[1].address;
+      const address = await addrs[1].getAddress();
       const ethBalanceBefore = await network.provider.send("eth_getBalance", [
         address,
       ]);
@@ -197,7 +176,7 @@ describe("Reach Affiliate Distribution", function () {
     });
 
     it("Should not be able to claim with invalid proof", async function () {
-      const address = addrs[2].address;
+      const address = await addrs[2].getAddress();
       const proof = generator.getProof(address);
       await expect(
         distribution
@@ -211,7 +190,7 @@ describe("Reach Affiliate Distribution", function () {
     });
 
     it("Should not be able to claim with wrong amounts", async function () {
-      const address = addrs[1].address;
+      const address = await addrs[1].getAddress();
       const proof = generator.getProof(address);
       await expect(
         distribution
@@ -225,7 +204,7 @@ describe("Reach Affiliate Distribution", function () {
     });
 
     it("Should not be able to claim if already claimed", async function () {
-      const address = addrs[1].address;
+      const address = await addrs[1].getAddress();
       const proof = generator.getProof(address);
       await distribution
         .connect(addrs[1])
@@ -254,11 +233,11 @@ describe("Reach Affiliate Distribution", function () {
       );
 
       let amountOut = await uniswap.getAmountsOut(
-        1, // 1 ETH
+        parseEther("1"), // 1 ETH
         [WETH_ADDRESS, token.address]
       );
       await expect(
-        distribution.connect(addrs[1]).swapEth(parseEther("1"), amountOut[1])
+        distribution.connect(addrs[1]).swapEth(parseEther("1"), 0, amountOut[1])
       ).to.be.reverted;
     });
 
@@ -269,7 +248,7 @@ describe("Reach Affiliate Distribution", function () {
       );
 
       let amountOut = await uniswap.getAmountsOut(
-        parseEther("1"), // 1 ETH
+        parseEther("0.75"), // 1 ETH
         [WETH_ADDRESS, token.address]
       );
 
@@ -280,15 +259,13 @@ describe("Reach Affiliate Distribution", function () {
         amountToSend,
       ]);
 
-      const tx = await distribution.swapEth(parseEther("1"), amountOut[1]);
+      const tx = await distribution.swapEth(
+        parseEther("0.75"),
+        parseEther("0.25"),
+        amountOut[1]
+      );
 
       expect(tx).to.emit(distribution, "EthSwapped");
-
-      const totalEthAllocated = await distribution.totalEthAllocated();
-
-      expect(totalEthAllocated.toString()).to.be.equal(
-        parseEther("99").toString()
-      );
 
       const mainDistributionBalance = await network.provider.send(
         "eth_getBalance",
@@ -302,7 +279,11 @@ describe("Reach Affiliate Distribution", function () {
 });
 
 const generateMerkleTree = async () => {
-  const wallets = [addrs[1].address, addrs[2].address, addrs[3].address];
+  const wallets = [
+    await addrs[1].getAddress(),
+    await addrs[2].getAddress(),
+    await addrs[3].getAddress(),
+  ];
   const ethAmounts = [
     ethers.utils.parseEther("1"),
     ethers.utils.parseEther("2"),

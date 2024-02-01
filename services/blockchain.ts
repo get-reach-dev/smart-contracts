@@ -1,5 +1,6 @@
-import { Signer, formatEther, parseEther } from "ethers";
+import { Signer } from "ethers";
 import { network } from "hardhat";
+import { formatEther, parseEther } from "ethers/lib/utils";
 import { EthereumProvider } from "hardhat/types";
 import { IUniswapV2Router02, Reach } from "../typechain-types";
 
@@ -29,7 +30,7 @@ export class BlockchainHelper {
 
   public async trade({ amount, direction, signer }: TradeInput) {
     const amountInWei = parseEther(amount);
-    const tokenAddress = await this.token.getAddress();
+    const tokenAddress = this.token.address;
     //convert balance to decimal from hex
     const signerAddress = await signer.getAddress();
     const wethAddress = await this.uniswap.WETH();
@@ -39,7 +40,7 @@ export class BlockchainHelper {
         : [tokenAddress, wethAddress];
 
     if (direction === "sell") {
-      const uniswapAddress = await this.uniswap.getAddress();
+      const uniswapAddress = this.uniswap.address;
       const tx = await this.token
         .connect(signer)
         .approve(uniswapAddress, parseEther("100000000"));
@@ -87,8 +88,8 @@ export class BlockchainHelper {
     const signerAddress = await signer.getAddress();
     const amountOfEth = parseEther("56");
     const amountOfTokens = parseEther("4000000");
-    const tokenAddress = await this.token.getAddress();
-    const uniswapAddress = await this.uniswap.getAddress();
+    const tokenAddress = this.token.address;
+    const uniswapAddress = this.uniswap.address;
     let tx = await this.token.approve(uniswapAddress, amountOfTokens);
     await tx.wait();
     tx = await this.uniswap
@@ -133,9 +134,7 @@ export class BlockchainHelper {
         signer: addr,
       });
 
-      const contractBalance = await this.token.balanceOf(
-        await this.token.getAddress()
-      );
+      const contractBalance = await this.token.balanceOf(this.token.address);
       accumulatedTokens += parseFloat(formatEther(contractBalance));
 
       const filter = this.token.filters.FeesCollected;
@@ -169,7 +168,7 @@ export class BlockchainHelper {
     direction: "buy" | "sell",
     signer: Signer
   ) => {
-    const tokenAddress = await this.token.getAddress();
+    const tokenAddress = this.token.address;
     const contractBalanceBefore = await this.token.balanceOf(tokenAddress);
     const signertBalanceBefore = await this.token.balanceOf(
       await signer.getAddress()
@@ -188,8 +187,8 @@ export class BlockchainHelper {
     const diff = contractBalanceAfter - contractBalanceBefore;
     const totalTrade =
       direction === "buy" ? signerBalanceDiff + diff : signerBalanceDiff;
-    if (totalTrade === BigInt(0)) return 0;
-    const percentage = (diff * BigInt(1e18)) / totalTrade;
+    if (totalTrade === 0) return 0;
+    const percentage = (diff * 1e18) / totalTrade;
     //percentage needs to be close to 5%
     const percentageInEth = parseFloat(formatEther(percentage));
     return percentageInEth;
