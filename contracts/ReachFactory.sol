@@ -19,7 +19,6 @@ contract ReachDistributionFactory is Ownable2Step {
     // State variables
     address public mainDistribution;
     mapping(string => address) public affiliates;
-    uint256 public commission = 25;
 
     /**
      * @dev Constructor that sets the initial Reach token address.
@@ -56,16 +55,6 @@ contract ReachDistributionFactory is Ownable2Step {
             revert InvalidDistributionAddress();
         }
         mainDistribution = _mainDistribution;
-    }
-
-    /**
-     * @dev Sets the affiliate comission.
-     * @param _commission The new affiliate comission.
-     */
-    function setCommission(
-        uint256 _commission
-    ) external onlyOwner {
-        commission = _commission;
     }
 
     // Override functions

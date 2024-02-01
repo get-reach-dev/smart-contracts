@@ -33,6 +33,10 @@ contract ReachAffiliateDistribution is ReachDistribution {
         uint _commission,
         uint _outputAmount
     ) external onlyOwner {
+        require(
+            _ethToSwap + _commission <= address(this).balance,
+            "Unsufficient eth balance"
+        );
         address[] memory path = new address[](2);
         path[0] = router.WETH();
         path[1] = reachToken;
