@@ -1,6 +1,5 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
-import "@nomicfoundation/hardhat-verify";
 import "@nomiclabs/hardhat-ethers";
 import "hardhat-gas-reporter";
 
