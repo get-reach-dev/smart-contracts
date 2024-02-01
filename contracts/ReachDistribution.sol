@@ -74,6 +74,7 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         uint256 _amount
     ) external payable {
         if (msg.value < _amount) revert UnsufficientEthAllocation();
+        require(_amount >= minMissionAmount, "Amount too low");
         emit MissionCreated(_missionId, _amount);
     }
 
