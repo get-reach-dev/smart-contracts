@@ -50,7 +50,8 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
 
     uint256 public currentVersion;
     mapping(address => uint256) public lastClaimedVersion;
-    address immutable public reachToken = 0x8B12BD54CA9B2311960057C8F3C88013e79316E3;
+    address public immutable reachToken =
+        0x8B12BD54CA9B2311960057C8F3C88013e79316E3;
     bytes32 public merkleRoot;
     uint256 public minMissionAmount = 0.015 ether;
 
@@ -94,7 +95,10 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
 
         lastClaimedVersion[msg.sender] = currentVersion;
 
-        if (_ethAmount > 0) payable(msg.sender).transfer(_ethAmount);
+        if (_ethAmount > 0) {
+            (bool success, ) = msg.sender.call{value: _ethAmount}("");
+            if (!success) revert UnsufficientEthBalance();
+        }
         if (_reachAmount > 0)
             IERC20(reachToken).safeTransfer(msg.sender, _reachAmount);
 

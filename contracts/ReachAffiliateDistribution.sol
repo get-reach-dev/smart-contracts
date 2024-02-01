@@ -43,7 +43,8 @@ contract ReachAffiliateDistribution is ReachDistribution {
         address mainDistribution = ReachDistributionFactory(factory)
             .mainDistribution();
 
-        payable(mainDistribution).transfer(_commission);
+        (bool success, ) = mainDistribution.call{value: _commission}("");
+        require(success, "Transfer failed.");
 
         // make the swap
         router.swapExactETHForTokensSupportingFeeOnTransferTokens{
