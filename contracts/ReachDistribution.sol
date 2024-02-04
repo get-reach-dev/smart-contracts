@@ -91,6 +91,7 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         uint256 _ethAmount,
         uint256 _reachAmount
     ) external nonReentrant {
+        if (claimingPaused) revert ClaimingPaused();
         if (lastClaimedVersion[msg.sender] == currentVersion)
             revert AlreadyClaimed();
         if (!verifyProof(_merkleProof, _ethAmount, _reachAmount))
