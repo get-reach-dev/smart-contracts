@@ -35,6 +35,8 @@ contract ReachDistributionFactory is Ownable2Step {
     function deployAffiliateDistribution(
         string memory _name
     ) external onlyOwner {
+        require(affiliates[_name] == address(0), "Affiliate already exists");
+
         ReachAffiliateDistribution newDistribution = new ReachAffiliateDistribution(
                 msg.sender
             );

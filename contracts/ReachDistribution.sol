@@ -2,7 +2,6 @@
 
 pragma solidity 0.8.19;
 
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -47,7 +46,7 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
     );
 
     IRouter public router = IRouter(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
-
+    bool public claimingPaused;
     uint256 public currentVersion;
     mapping(address => uint256) public lastClaimedVersion;
     address public immutable reachToken =
@@ -64,18 +63,21 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
         minMissionAmount = _minMissionAmount;
     }
 
+    /**
+     * @dev Allows the owner to pause the claiming of rewards.
+     */
+    function pauseClaiming() external onlyOwner {
+        claimingPaused = true;
+    }
+
     /*
      * @notice Creates a new mission
      * @param _missionId The ID of the new mission
      * @param _amount The amount allocated to the new mission
      */
-    function createMission(
-        string memory _missionId,
-        uint256 _amount
-    ) external payable {
-        if (msg.value < _amount) revert UnsufficientEthAllocation();
-        require(_amount >= minMissionAmount, "Amount too low");
-        emit MissionCreated(_missionId, _amount);
+    function createMission(string memory _missionId) external payable {
+        require(msg.value >= minMissionAmount, "Amount too low");
+        emit MissionCreated(_missionId, msg.value);
     }
 
     /**
@@ -116,10 +118,12 @@ contract ReachDistribution is Ownable2Step, ReentrancyGuard {
      * @dev Creates a new distribution of rewards.
      * @param _merkleRoot The merkle root of the distribution.
      */
-    function createDistribution(bytes32 _merkleRoot) public onlyOwner {
+    function createDistribution(bytes32 _merkleRoot) external onlyOwner {
+        require(claimingPaused, "Claiming not paused");
         if (_merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
         currentVersion++;
         merkleRoot = _merkleRoot;
+        claimingPaused = false;
         emit DistributionSet(_merkleRoot);
     }
 
