@@ -85,11 +85,9 @@ describe("Reach Affiliate Distribution", function () {
         UNISWAPV2_ROUTER02_ADDRESS
       );
 
-      const tx = await distribution
-        .connect(addrs[0])
-        .createMission("1", parseEther("1"), {
-          value: parseEther("1"),
-        });
+      const tx = await distribution.connect(addrs[0]).createMission("1", {
+        value: parseEther("1"),
+      });
       expect(tx).to.emit(distribution, "MissionSet");
 
       const balance = await network.provider.send("eth_getBalance", [
@@ -111,6 +109,9 @@ describe("Reach Affiliate Distribution", function () {
       root = data.root;
       proofs = data.proofs;
       leaves = data.leaves;
+
+      const tx = await distribution.pauseClaiming();
+      await tx.wait();
     });
 
     it("Should generate a merkle tree with some wallets", async function () {
@@ -147,6 +148,9 @@ describe("Reach Affiliate Distribution", function () {
       const impersonatedOwner = await ethers.getImpersonatedSigner(owner);
       //sset balance
       await network.provider.send("hardhat_setBalance", [owner, amount]);
+      const tx = await distribution.pauseClaiming();
+      await tx.wait();
+
       await distribution.connect(impersonatedOwner).createDistribution(root);
     });
 

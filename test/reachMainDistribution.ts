@@ -50,7 +50,10 @@ describe("Reach Distribution", function () {
 
     await token
       .connect(impersonatedOwner)
-      .transfer(await addrs[0].getAddress(), ethers.utils.parseEther("1000000"));
+      .transfer(
+        await addrs[0].getAddress(),
+        ethers.utils.parseEther("1000000")
+      );
     const tokenAddress = "0x8b12bd54ca9b2311960057c8f3c88013e79316e3";
 
     Distribution = await ethers.getContractFactory("ReachMainDistribution");
@@ -75,11 +78,9 @@ describe("Reach Distribution", function () {
 
   describe("Create missions", function () {
     it("Should be able to create a mission", async function () {
-      const tx = await distribution
-        .connect(addrs[0])
-        .createMission("1", parseEther("1"), {
-          value: parseEther("1"),
-        });
+      const tx = await distribution.connect(addrs[0]).createMission("1", {
+        value: parseEther("1"),
+      });
       expect(tx).to.emit(distribution, "MissionCreated");
 
       const receipt = await tx.wait();
@@ -97,6 +98,9 @@ describe("Reach Distribution", function () {
       root = data.root;
       proofs = data.proofs;
       leaves = data.leaves;
+
+      const tx = await distribution.pauseClaiming();
+      await tx.wait();
     });
 
     it("Should generate a merkle tree with some wallets", async function () {
@@ -105,11 +109,7 @@ describe("Reach Distribution", function () {
       await network.provider.send("hardhat_setBalance", [address, amount]);
       await token.transfer(address, ethers.utils.parseEther("100000"));
 
-      const tx = await distribution
-        .connect(addrs[0])
-        .createDistribution(
-          root
-        );
+      const tx = await distribution.connect(addrs[0]).createDistribution(root);
 
       expect(tx).to.emit(distribution, "DistributionSet");
     });
@@ -128,11 +128,9 @@ describe("Reach Distribution", function () {
       const amount = "0x56BC75E2D63100000"; // 100 eth
       await network.provider.send("hardhat_setBalance", [address, amount]);
       await token.transfer(address, ethers.utils.parseEther("100000"));
-      await distribution
-        .connect(addrs[0])
-        .createDistribution(
-          root
-        );
+      const tx = await distribution.pauseClaiming();
+      await tx.wait();
+      await distribution.connect(addrs[0]).createDistribution(root);
     });
 
     it("Should be able to claim", async function () {
@@ -264,7 +262,11 @@ describe("Reach Distribution", function () {
 });
 
 const generateMerkleTree = async () => {
-  const wallets = [await addrs[1].getAddress(), await addrs[2].getAddress(), await addrs[3].getAddress()];
+  const wallets = [
+    await addrs[1].getAddress(),
+    await addrs[2].getAddress(),
+    await addrs[3].getAddress(),
+  ];
   const ethAmounts = [
     ethers.utils.parseEther("0.1"),
     ethers.utils.parseEther("2"),
