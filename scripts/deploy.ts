@@ -2,19 +2,11 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
-
-  console.log("Deploying contracts with the account:", deployer.address);
-  const ReachMainDistribution = await ethers.getContractFactory(
-    "ReachMainDistribution"
-  );
-  const reachMainDistribution = await ReachMainDistribution.deploy();
-  await reachMainDistribution.deployed();
-
-  console.log(
-    "ReachMainDistribution deployed to:",
-    reachMainDistribution.address
-  );
+  const addrs = (await ethers.getSigners()) as any[];
+  const TokenFactory = await ethers.getContractFactory("TAB");
+  const token = await TokenFactory.deploy();
+  await token.deployed();
+  console.log("Token deployed to:", token.address);
 }
 
 main()
